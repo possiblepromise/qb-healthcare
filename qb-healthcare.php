@@ -3,7 +3,6 @@
 
 require_once 'vendor/autoload.php';
 
-use MongoDB;
 use PossiblePromise\QbHealthcare\Command\ImportServicesCommand;
 use PossiblePromise\QbHealthcare\Repository\PayersRepository;
 use PossiblePromise\QbHealthcare\Serializer\PayerSerializer;
