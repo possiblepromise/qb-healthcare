@@ -18,13 +18,13 @@
     }
   ],
     "require": {
-      "php": ">=8.1",
-        "symfony/console": "^6.2",
-        "symfony/serializer": "^6.2",
-        "webmozart/assert": "^1.11",
+        "php": ">=8.1",
+        "ext-mongodb": "*",
         "mongodb/mongodb": "^1.15",
-        "cuyz/valinor": "^1.4",
-        "symfony/property-access": "^6.2"
+        "symfony/console": "^6.2",
+        "symfony/property-access": "^6.2",
+        "symfony/serializer": "^6.2",
+        "webmozart/assert": "^1.11"
     },
   "require-dev": {
     "vimeo/psalm": "^5.12",
@@ -34,5 +34,8 @@
     "psr-4": {
       "PossiblePromise\\QbHealthcare\\": "src/"
     }
+  },
+  "config": {
+    "sort-packages": true
   }
 }
