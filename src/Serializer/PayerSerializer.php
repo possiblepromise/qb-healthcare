@@ -74,6 +74,16 @@ final class PayerSerializer
 
         $emptyToNull = static fn (string $value): ?string => empty($value) ? null : $value;
 
+        $encoders = [new CsvEncoder()];
+        $normalizers = [
+            new ObjectNormalizer($classMetadataFactory, $metadataAwareNameConverter),
+            new ArrayDenormalizer(),
+        ];
+
+        $serializer = new Serializer($normalizers, $encoders);
+
+        $fileData = file_get_contents($file);
+
         $context = [
             AbstractNormalizer::CALLBACKS => [
                 'address' => $emptyToNull,
@@ -86,20 +96,7 @@ final class PayerSerializer
             ],
         ];
 
-        $encoders = [new CsvEncoder()];
-        $normalizers = [
-            new ObjectNormalizer(
-                $classMetadataFactory,
-                $metadataAwareNameConverter,
-                defaultContext: $context
-            ),
-            new ArrayDenormalizer(),
-        ];
-
-        $serializer = new Serializer($normalizers, $encoders);
-
-        $fileData = file_get_contents($file);
-        $lines = $serializer->deserialize($fileData, PayerLine::class . '[]', 'csv');
+        $lines = $serializer->deserialize($fileData, PayerLine::class . '[]', 'csv', $context);
         Assert::isArray($lines);
         Assert::allIsInstanceOf($lines, PayerLine::class);
 
