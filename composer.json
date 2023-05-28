@@ -1,0 +1,38 @@
+{
+    "name": "possiblepromise/qb-healthcare",
+    "description": "Allows for importing data from AlohaABA to QuickBooks Online for bookkeeping.",
+    "version": "0.1.0",
+    "type": "project",
+    "license": "proprietary",
+  "authors": [
+    {
+      "name": "Brandon Olivares",
+      "email": "brandon@possiblepromise.com",
+      "homepage": "https://www.possiblepromise.com/"
+    }
+  ],
+  "repositories": [
+    {
+      "type": "vcs",
+      "url": "https://github.com/devbanana/php-cs-fixer-config"
+    }
+  ],
+    "require": {
+      "php": ">=8.1",
+        "symfony/console": "^6.2",
+        "symfony/serializer": "^6.2",
+        "webmozart/assert": "^1.11",
+        "mongodb/mongodb": "^1.15",
+        "cuyz/valinor": "^1.4",
+        "symfony/property-access": "^6.2"
+    },
+  "require-dev": {
+    "vimeo/psalm": "^5.12",
+        "devbanana/php-cs-fixer-config": "dev-master"
+  },
+  "autoload": {
+    "psr-4": {
+      "PossiblePromise\\QbHealthcare\\": "src/"
+    }
+  }
+}
