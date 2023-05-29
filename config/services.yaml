@@ -1,0 +1,42 @@
+services:
+  _defaults:
+    autowire: true
+    autoconfigure: true
+
+  PossiblePromise\QbHealthcare\:
+    resource: '../src/'
+    exclude:
+      - '../src/Entity/'
+      - '../src/ValueObject/'
+
+  PossiblePromise\QbHealthcare\Application:
+    public: true
+    arguments:
+      - 'QB Healthcare'
+      - '0.1.0'
+      - !tagged_iterator console.command
+
+  # Configure serializer
+  Symfony\Component\Serializer\SerializerInterface: '@serializer'
+  serializer:
+    class: Symfony\Component\Serializer\Serializer
+    arguments:
+      - ['@serializer.denormalizer.array', '@serializer.normalizer.object']
+      - ['@serializer.encoder.csv']
+  serializer.denormalizer.array:
+    class: Symfony\Component\Serializer\Normalizer\ArrayDenormalizer
+  serializer.normalizer.object:
+    class: Symfony\Component\Serializer\Normalizer\ObjectNormalizer
+  serializer.encoder.csv:
+    class: Symfony\Component\Serializer\Encoder\CsvEncoder
+
+  Symfony\Component\Serializer\Mapping\Factory\ClassMetadataFactoryInterface: '@Symfony\Component\Serializer\Mapping\Factory\ClassMetadataFactory'
+  Symfony\Component\Serializer\Mapping\Factory\ClassMetadataFactory: ~
+  Symfony\Component\Serializer\NameConverter\NameConverterInterface: '@Symfony\Component\Serializer\NameConverter\MetadataAwareNameConverter'
+  Symfony\Component\Serializer\NameConverter\MetadataAwareNameConverter:
+    arguments:
+      $fallbackNameConverter: ~
+  Symfony\Component\Serializer\Mapping\Loader\LoaderInterface: '@Symfony\Component\Serializer\Mapping\Loader\AnnotationLoader'
+  Symfony\Component\Serializer\Mapping\Loader\AnnotationLoader: ~
+  Doctrine\Common\Annotations\Reader: '@Doctrine\Common\Annotations\AnnotationReader'
+  Doctrine\Common\Annotations\AnnotationReader: ~

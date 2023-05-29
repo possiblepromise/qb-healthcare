@@ -3,21 +3,22 @@
 
 require_once 'vendor/autoload.php';
 
-use PossiblePromise\QbHealthcare\Command\ImportServicesCommand;
-use PossiblePromise\QbHealthcare\Repository\PayersRepository;
-use PossiblePromise\QbHealthcare\Serializer\PayerSerializer;
-use Symfony\Component\Console\Application;
+use PossiblePromise\QbHealthcare\Application;
+use Symfony\Component\Config\FileLocator;
+use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Component\DependencyInjection\Loader\YamlFileLoader;
 
-$application = new Application('QB Healthcare', '0.1.0');
+$container = new ContainerBuilder();
+$loader = new YamlFileLoader($container, new FileLocator(__DIR__ . '/config'));
+$loader->load('services.yaml');
 
-$client = new MongoDB\Client();
-$db = $client->qbHealthcare;
-$db->command(['ping' => 1]);
-
-$payersRepository = new PayersRepository($db);
-
-$application
-    ->add(new ImportServicesCommand(new PayerSerializer(), $payersRepository))
+$container->registerForAutoconfiguration(\Symfony\Component\Console\Command\Command::class)
+    ->addTag('console.command')
 ;
+
+$container->compile();
+
+$application = $container->get(Application::class);
+assert($application instanceof Application);
 
 $application->run();

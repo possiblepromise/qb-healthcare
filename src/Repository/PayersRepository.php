@@ -5,16 +5,16 @@ declare(strict_types=1);
 namespace PossiblePromise\QbHealthcare\Repository;
 
 use MongoDB\Collection;
-use MongoDB\Database;
+use PossiblePromise\QbHealthcare\Database\MongoClient;
 use PossiblePromise\QbHealthcare\Entity\Payer;
 
 final class PayersRepository
 {
     private Collection $payers;
 
-    public function __construct(Database $db)
+    public function __construct(MongoClient $client)
     {
-        $this->payers = $db->payers;
+        $this->payers = $client->getDatabase()->payers;
     }
 
     /**

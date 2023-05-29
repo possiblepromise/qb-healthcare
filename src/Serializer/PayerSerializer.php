@@ -4,22 +4,19 @@ declare(strict_types=1);
 
 namespace PossiblePromise\QbHealthcare\Serializer;
 
-use Doctrine\Common\Annotations\AnnotationReader;
 use PossiblePromise\QbHealthcare\Entity\Payer;
 use PossiblePromise\QbHealthcare\Entity\Service;
 use PossiblePromise\QbHealthcare\ValueObject\PayerLine;
-use Symfony\Component\Serializer\Encoder\CsvEncoder;
-use Symfony\Component\Serializer\Mapping\Factory\ClassMetadataFactory;
-use Symfony\Component\Serializer\Mapping\Loader\AnnotationLoader;
-use Symfony\Component\Serializer\NameConverter\MetadataAwareNameConverter;
 use Symfony\Component\Serializer\Normalizer\AbstractNormalizer;
-use Symfony\Component\Serializer\Normalizer\ArrayDenormalizer;
-use Symfony\Component\Serializer\Normalizer\ObjectNormalizer;
-use Symfony\Component\Serializer\Serializer;
+use Symfony\Component\Serializer\SerializerInterface;
 use Webmozart\Assert\Assert;
 
 final class PayerSerializer
 {
+    public function __construct(private readonly SerializerInterface $serializer)
+    {
+    }
+
     /**
      * @return Payer[]
      */
@@ -67,20 +64,7 @@ final class PayerSerializer
      */
     private function processCsv(string $file): array
     {
-        $classMetadataFactory = new ClassMetadataFactory(
-            new AnnotationLoader(new AnnotationReader())
-        );
-        $metadataAwareNameConverter = new MetadataAwareNameConverter($classMetadataFactory);
-
         $emptyToNull = static fn (string $value): ?string => empty($value) ? null : $value;
-
-        $encoders = [new CsvEncoder()];
-        $normalizers = [
-            new ObjectNormalizer($classMetadataFactory, $metadataAwareNameConverter),
-            new ArrayDenormalizer(),
-        ];
-
-        $serializer = new Serializer($normalizers, $encoders);
 
         $fileData = file_get_contents($file);
 
@@ -96,7 +80,7 @@ final class PayerSerializer
             ],
         ];
 
-        $lines = $serializer->deserialize($fileData, PayerLine::class . '[]', 'csv', $context);
+        $lines = $this->serializer->deserialize($fileData, PayerLine::class . '[]', 'csv', $context);
         Assert::isArray($lines);
         Assert::allIsInstanceOf($lines, PayerLine::class);
 

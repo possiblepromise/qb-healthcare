@@ -24,5 +24,10 @@
                 <referencedMethod name="*::__construct" />
             </errorLevel>
         </PossiblyUnusedMethod>
+        <UnusedClass>
+            <errorLevel type="suppress">
+                <directory name="src/Command/" />
+            </errorLevel>
+        </UnusedClass>
     </issueHandlers>
 </psalm>
