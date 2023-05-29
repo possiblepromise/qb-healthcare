@@ -8,9 +8,6 @@ use Symfony\Component\Serializer\Annotation\SerializedName;
 
 final class PayerLine
 {
-    /**
-     * @psalm-suppress PossiblyUnusedMethod
-     */
     public function __construct(
         #[SerializedName('Payer ID')]
         public readonly string $payerId,

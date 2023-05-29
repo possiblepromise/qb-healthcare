@@ -19,8 +19,9 @@
         <PossiblyUnusedMethod>
             <errorLevel type="suppress">
                 <file name="src/Entity/Payer.php" />
-                <referencedMethod name="PossiblePromise\QbHealthcare\Entity\Service::bsonSerialize" />
-                <referencedMethod name="PossiblePromise\QbHealthcare\Entity\Service::bsonUnserialize" />
+                <referencedMethod name="*::bsonSerialize" />
+                <referencedMethod name="*::bsonUnserialize" />
+                <referencedMethod name="*::__construct" />
             </errorLevel>
         </PossiblyUnusedMethod>
     </issueHandlers>
