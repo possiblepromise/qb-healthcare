@@ -7,7 +7,7 @@ namespace PossiblePromise\QbHealthcare\Serializer;
 use PossiblePromise\QbHealthcare\Entity\Payer;
 use PossiblePromise\QbHealthcare\Entity\Service;
 use PossiblePromise\QbHealthcare\ValueObject\PayerLine;
-use Symfony\Component\Serializer\Normalizer\AbstractNormalizer;
+use Symfony\Component\Serializer\Context\Normalizer\ObjectNormalizerContextBuilder;
 use Symfony\Component\Serializer\SerializerInterface;
 use Webmozart\Assert\Assert;
 
@@ -68,8 +68,8 @@ final class PayerSerializer
 
         $fileData = file_get_contents($file);
 
-        $context = [
-            AbstractNormalizer::CALLBACKS => [
+        $contextBuilder = (new ObjectNormalizerContextBuilder())
+            ->withCallbacks([
                 'address' => $emptyToNull,
                 'city' => $emptyToNull,
                 'state' => $emptyToNull,
@@ -77,10 +77,10 @@ final class PayerSerializer
                 'phone' => $emptyToNull,
                 'email' => $emptyToNull,
                 'unitSize' => self::formatUnitSize(...),
-            ],
-        ];
+            ])
+        ;
 
-        $lines = $this->serializer->deserialize($fileData, PayerLine::class . '[]', 'csv', $context);
+        $lines = $this->serializer->deserialize($fileData, PayerLine::class . '[]', 'csv', $contextBuilder->toArray());
         Assert::isArray($lines);
         Assert::allIsInstanceOf($lines, PayerLine::class);
 
