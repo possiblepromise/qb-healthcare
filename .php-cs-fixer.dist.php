@@ -16,6 +16,9 @@ $finder = Finder::create()
 
 return Configurator::fromPhpVersion(PhpVersion::php81)
     ->withRiskyRulesEnabled()
+    ->withAddedRules([
+        'date_time_immutable' => false,
+    ])
     ->fixerConfig()
     ->setFinder($finder)
 ;
