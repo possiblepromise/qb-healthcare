@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PossiblePromise\QbHealthcare\Repository;
 
 use MongoDB\Collection;
+use MongoDB\Model\BSONIterator;
 use PossiblePromise\QbHealthcare\Database\MongoClient;
 use PossiblePromise\QbHealthcare\Entity\Payer;
 
@@ -29,5 +30,20 @@ final class PayersRepository
                 ['upsert' => true],
             );
         }
+    }
+
+    public function findOneByNameAndService(string $name, string $billingCode): ?Payer
+    {
+        /** @var BSONIterator $result */
+        $result = $this->payers->aggregate([
+            ['$match' => ['name' => $name, 'services._id' => $billingCode]],
+            ['$unwind' => '$services'],
+            ['$match' => ['services._id' => $billingCode]],
+        ]);
+
+        $result->next();
+
+        /** @var Payer|null */
+        return $result->current();
     }
 }

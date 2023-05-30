@@ -207,7 +207,7 @@ final class Payer implements Persistable
         Assert::nullOrString($data['zip']);
         Assert::nullOrString($data['phone']);
         Assert::nullOrString($data['email']);
-        Assert::isInstanceOf($data['services'], BSONArray::class);
+        Assert::isInstanceOfAny($data['services'], [BSONArray::class, Service::class]);
 
         $this->id = $data['_id'];
         $this->name = $data['name'];
@@ -218,9 +218,13 @@ final class Payer implements Persistable
         $this->zip = $data['zip'];
         $this->phone = $data['phone'];
         $this->email = $data['email'];
-        $services = $data['services']->getArrayCopy();
-        Assert::allIsInstanceOf($services, Service::class);
 
-        $this->services = $services;
+        if ($data['services'] instanceof BSONArray) {
+            $services = $data['services']->getArrayCopy();
+            Assert::allIsInstanceOf($services, Service::class);
+            $this->services = $services;
+        } elseif ($data['services'] instanceof Service) {
+            $this->services = [$data['services']];
+        }
     }
 }

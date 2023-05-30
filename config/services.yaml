@@ -21,10 +21,16 @@ services:
   serializer:
     class: Symfony\Component\Serializer\Serializer
     arguments:
-      - ['@serializer.denormalizer.array', '@serializer.normalizer.object']
+      -
+        - '@serializer.denormalizer.array'
+        - '@serializer.denormalizer.date_or_null'
+        - '@serializer.normalizer.object'
       - ['@serializer.encoder.csv']
   serializer.denormalizer.array:
     class: Symfony\Component\Serializer\Normalizer\ArrayDenormalizer
+  serializer.denormalizer.date_or_null: '@PossiblePromise\QbHealthcare\Serializer\Normalizer\DateOrNullDenormalizer'
+  serializer.normalizer.date: '@Symfony\Component\Serializer\Normalizer\DateTimeNormalizer'
+  Symfony\Component\Serializer\Normalizer\DateTimeNormalizer: ~
   serializer.normalizer.object:
     class: Symfony\Component\Serializer\Normalizer\ObjectNormalizer
   serializer.encoder.csv:
