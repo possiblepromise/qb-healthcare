@@ -19,7 +19,6 @@ final class PayerLine
         public readonly ?string $address,
         #[SerializedName('City')]
         public readonly ?string $city,
-        /** @var numeric-string */
         #[SerializedName('State')]
         public readonly ?string $state,
         #[SerializedName('Zip')]
@@ -32,9 +31,6 @@ final class PayerLine
         public readonly string $billingCode,
         #[SerializedName('Service Name')]
         public readonly string $serviceName,
-        /**
-         * @var numeric-string
-         */
         #[SerializedName('Rate')]
         public readonly string $rate,
         #[SerializedName('Contract Rate')]
