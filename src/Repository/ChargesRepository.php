@@ -50,6 +50,7 @@ final class ChargesRepository
             $charge = new Charge(
                 chargeLine: $line->chargeLine,
                 serviceDate: $line->dateOfService,
+                clientName: $line->clientName,
                 service: $service,
                 billedAmount: $line->billedAmount,
                 contractAmount: $line->contractAmount,

@@ -15,6 +15,8 @@ final class ChargeLine
         public string $chargeLine,
         #[SerializedName('Date of Service')]
         public \DateTime $dateOfService,
+        #[SerializedName('Client Name')]
+        public string $clientName,
         #[SerializedName('Billing Code')]
         public string $billingCode,
         #[SerializedName('Billed Amount')]

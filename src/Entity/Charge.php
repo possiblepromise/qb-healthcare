@@ -14,6 +14,7 @@ final class Charge implements Persistable
     public function __construct(
         private string $chargeLine,
         private \DateTime $serviceDate,
+        private string $clientName,
         private Service $service,
         private string $billedAmount,
         private ?string $contractAmount,
@@ -33,6 +34,7 @@ final class Charge implements Persistable
         return [
             '_id' => $this->chargeLine,
             'serviceDate' => new UTCDateTime($this->serviceDate),
+            'clientName' => $this->clientName,
             'service' => $this->service,
             'billedAmount' => new Decimal128($this->billedAmount),
             'contractAmount' => $this->contractAmount ? new Decimal128($this->contractAmount) : null,
@@ -46,6 +48,7 @@ final class Charge implements Persistable
     {
         Assert::string($data['_id']);
         Assert::isInstanceOf($data['serviceDate'], UTCDateTime::class);
+        Assert::string($data['clientName']);
         Assert::isInstanceOf($data['service'], Service::class);
         Assert::isInstanceOf($data['billedAmount'], Decimal128::class);
         Assert::nullOrIsInstanceOf($data['contractAmount'], Decimal128::class);
@@ -55,6 +58,7 @@ final class Charge implements Persistable
 
         $this->chargeLine = $data['_id'];
         $this->serviceDate = $data['serviceDate']->toDateTime();
+        $this->clientName = $data['clientName'];
         $this->service = $data['service'];
         $this->billedAmount = (string) $data['billedAmount'];
 
