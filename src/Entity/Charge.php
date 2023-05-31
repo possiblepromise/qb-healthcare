@@ -40,7 +40,7 @@ final class Charge implements Persistable
             'contractAmount' => $this->contractAmount ? new Decimal128($this->contractAmount) : null,
             'billedUnits' => $this->billedUnits,
             'primaryPaymentInfo' => $this->primaryPaymentInfo,
-            'payerBalance' => $this->payerBalance ? new Decimal128($this->payerBalance) : null,
+            'payerBalance' => $this->payerBalance ? new Decimal128($this->payerBalance) : new Decimal128('0.00'),
         ];
     }
 
