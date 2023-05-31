@@ -32,9 +32,9 @@ final class PaymentInfo implements Persistable
             'paymentDate' => $this->paymentDate ? new UTCDateTime($this->paymentDate) : null,
             'payment' => $this->payment ? new Decimal128($this->payment) : null,
             'paymentRef' => $this->paymentRef,
-            'copay' => $this->copay ? new Decimal128($this->copay) : null,
-            'coinsurance' => $this->coinsurance ? new Decimal128($this->coinsurance) : null,
-            'deductible' => $this->deductible ? new Decimal128($this->deductible) : null,
+            'copay' => $this->copay ? new Decimal128($this->copay) : new Decimal128('0.00'),
+            'coinsurance' => $this->coinsurance ? new Decimal128($this->coinsurance) : new Decimal128('0.00'),
+            'deductible' => $this->deductible ? new Decimal128($this->deductible) : new Decimal128('0.00'),
             'postedDate' => $this->postedDate ? new UTCDateTime($this->postedDate) : null,
         ];
     }
@@ -67,17 +67,9 @@ final class PaymentInfo implements Persistable
 
         $this->paymentRef = $data['paymentRef'];
 
-        if ($data['copay'] !== null) {
-            $this->copay = (string) $data['copay'];
-        }
-
-        if ($data['coinsurance'] !== null) {
-            $this->copay = (string) $data['coinsurance'];
-        }
-
-        if ($data['deductible'] !== null) {
-            $this->copay = (string) $data['deductible'];
-        }
+        $this->copay = (string) $data['copay'];
+        $this->copay = (string) $data['coinsurance'];
+        $this->copay = (string) $data['deductible'];
 
         if ($data['postedDate'] !== null) {
             $this->postedDate = $data['postedDate']->toDateTime();
