@@ -114,6 +114,8 @@ final class PaymentCreateCommand extends Command
             }
 
             $io->definitionList(...$list);
+
+            $io->text(sprintf('Enter reference number: %s', $paymentRef));
         } while (!$io->confirm('Have you created the payment?'));
 
         $this->charges->createPayment($paymentRef);
