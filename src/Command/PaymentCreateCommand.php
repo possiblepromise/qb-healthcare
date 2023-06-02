@@ -106,11 +106,11 @@ final class PaymentCreateCommand extends Command
             $list = [];
 
             foreach ($qbInvoices as $invoice) {
-                $list[] = ["Invoice {$invoice}" => $this->charges->getInvoiceTotal($invoice)];
+                $list[] = ["Invoice {$invoice}" => $fmt->formatCurrency((float) $this->charges->getInvoiceTotal($invoice), 'USD')];
             }
 
             foreach ($qbCreditMemos as $creditMemo) {
-                $list[] = ["Credit memo {$creditMemo}" => $this->charges->getCreditMemoTotal($creditMemo)];
+                $list[] = ["Credit memo {$creditMemo}" => $fmt->formatCurrency((float) $this->charges->getCreditMemoTotal($creditMemo), 'USD')];
             }
 
             $io->definitionList(...$list);
