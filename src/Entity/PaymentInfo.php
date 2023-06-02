@@ -17,11 +17,22 @@ final class PaymentInfo implements Persistable
         private ?\DateTime $paymentDate = null,
         private ?string $payment = null,
         private ?string $paymentRef = null,
+        /** @var numeric-string|null */
         private ?string $copay = null,
+        /** @var numeric-string|null */
         private ?string $coinsurance = null,
+        /** @var numeric-string|null */
         private ?string $deductible = null,
         private ?\DateTime $postedDate = null
     ) {
+    }
+
+    /**
+     * @return numeric-string|null
+     */
+    public function getCoinsurance(): ?string
+    {
+        return $this->coinsurance;
     }
 
     public function bsonSerialize(): array
@@ -67,9 +78,17 @@ final class PaymentInfo implements Persistable
 
         $this->paymentRef = $data['paymentRef'];
 
-        $this->copay = (string) $data['copay'];
-        $this->copay = (string) $data['coinsurance'];
-        $this->copay = (string) $data['deductible'];
+        $copay = (string) $data['copay'];
+        Assert::numeric($copay);
+        $this->copay = $copay;
+
+        $coinsurance = (string) $data['coinsurance'];
+        Assert::numeric($coinsurance);
+        $this->coinsurance = $coinsurance;
+
+        $deductible = (string) $data['deductible'];
+        Assert::numeric($deductible);
+        $this->deductible = $deductible;
 
         if ($data['postedDate'] !== null) {
             $this->postedDate = $data['postedDate']->toDateTime();

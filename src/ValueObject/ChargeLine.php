@@ -19,8 +19,10 @@ final class ChargeLine
         public string $clientName,
         #[SerializedName('Billing Code')]
         public string $billingCode,
+        /** @var numeric-string */
         #[SerializedName('Billed Amount')]
         public string $billedAmount,
+        /** @var numeric-string|null */
         #[SerializedName('Contract Amount')]
         public ?string $contractAmount,
         #[SerializedName('Billed Units')]
@@ -37,10 +39,13 @@ final class ChargeLine
         public ?string $primaryPayment,
         #[SerializedName('Primary Payment Ref')]
         public ?string $primaryPaymentRef,
+        /** @var numeric-string|null */
         #[SerializedName('Copay')]
         public ?string $copay,
+        /** @var numeric-string|null */
         #[SerializedName('Coinsurance')]
         public ?string $coinsurance,
+        /** @var numeric-string|null */
         #[SerializedName('Deductible')]
         public ?string $deductible,
         #[SerializedName('Primary Posted Date')]

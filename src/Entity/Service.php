@@ -19,6 +19,16 @@ final class Service implements Persistable
     ) {
     }
 
+    public function getName(): string
+    {
+        return $this->name;
+    }
+
+    public function getRate(): string
+    {
+        return $this->rate;
+    }
+
     public function bsonSerialize(): array
     {
         return [

@@ -16,17 +16,70 @@ final class Charge implements Persistable
         private \DateTime $serviceDate,
         private string $clientName,
         private Service $service,
+        /** @var numeric-string */
         private string $billedAmount,
+        /** @var numeric-string|null */
         private ?string $contractAmount,
         private int $billedUnits,
         private PaymentInfo $primaryPaymentInfo,
-        private string $payerBalance
+        private string $payerBalance,
+        private ClaimStatus $status = ClaimStatus::pending,
+        private ?string $fileId = null,
+        private ?string $claimId = null,
+        private ?string $qbInvoiceNumber = null,
+        private ?string $qbCreditMemoNumber = null,
     ) {
     }
 
     public function getChargeLine(): string
     {
         return $this->chargeLine;
+    }
+
+    public function getServiceDate(): \DateTime
+    {
+        return $this->serviceDate;
+    }
+
+    public function getService(): Service
+    {
+        return $this->service;
+    }
+
+    /**
+     * @return numeric-string
+     */
+    public function getBilledAmount(): string
+    {
+        return $this->billedAmount;
+    }
+
+    /**
+     * @return numeric-string|null
+     */
+    public function getContractAmount(): ?string
+    {
+        return $this->contractAmount;
+    }
+
+    public function getBilledUnits(): int
+    {
+        return $this->billedUnits;
+    }
+
+    public function getPrimaryPaymentInfo(): PaymentInfo
+    {
+        return $this->primaryPaymentInfo;
+    }
+
+    public function getQbInvoiceNumber(): ?string
+    {
+        return $this->qbInvoiceNumber;
+    }
+
+    public function getQbCreditMemoNumber(): ?string
+    {
+        return $this->qbCreditMemoNumber;
     }
 
     public function bsonSerialize(): array
@@ -41,6 +94,11 @@ final class Charge implements Persistable
             'billedUnits' => $this->billedUnits,
             'primaryPaymentInfo' => $this->primaryPaymentInfo,
             'payerBalance' => $this->payerBalance ? new Decimal128($this->payerBalance) : new Decimal128('0.00'),
+            'status' => $this->status,
+            'fileId' => $this->fileId,
+            'claimId' => $this->claimId,
+            'qbInvoiceNumber' => $this->qbInvoiceNumber,
+            'qbCreditMemoNumber' => $this->qbCreditMemoNumber,
         ];
     }
 
@@ -55,19 +113,35 @@ final class Charge implements Persistable
         Assert::integer($data['billedUnits']);
         Assert::isInstanceOf($data['primaryPaymentInfo'], PaymentInfo::class);
         Assert::nullOrIsInstanceOf($data['payerBalance'], Decimal128::class);
+        Assert::string($data['status']);
+        Assert::nullOrString($data['fileId']);
+        Assert::nullOrString($data['claimId']);
+        Assert::nullOrString($data['qbInvoiceNumber']);
+        Assert::nullOrString($data['qbCreditMemoNumber']);
 
         $this->chargeLine = $data['_id'];
         $this->serviceDate = $data['serviceDate']->toDateTime();
         $this->clientName = $data['clientName'];
         $this->service = $data['service'];
-        $this->billedAmount = (string) $data['billedAmount'];
+
+        $billedAmount = (string) $data['billedAmount'];
+        Assert::numeric($billedAmount);
+        $this->billedAmount = $billedAmount;
 
         if ($data['contractAmount'] !== null) {
-            $this->contractAmount = (string) $data['contractAmount'];
+            $contractAmount = (string) $data['contractAmount'];
+            Assert::numeric($contractAmount);
+            $this->contractAmount = $contractAmount;
         }
 
         $this->billedUnits = $data['billedUnits'];
         $this->primaryPaymentInfo = $data['primaryPaymentInfo'];
         $this->payerBalance = (string) $data['payerBalance'];
+
+        $this->status = ClaimStatus::from($data['status']);
+        $this->fileId = $data['fileId'];
+        $this->claimId = $data['claimId'];
+        $this->qbInvoiceNumber = $data['qbInvoiceNumber'];
+        $this->qbCreditMemoNumber = $data['qbCreditMemoNumber'];
     }
 }
