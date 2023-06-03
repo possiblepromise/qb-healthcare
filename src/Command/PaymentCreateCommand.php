@@ -63,7 +63,9 @@ final class PaymentCreateCommand extends Command
         }
 
         $qbInvoices = array_unique($qbInvoices);
+        sort($qbInvoices);
         $qbCreditMemos = array_unique($qbCreditMemos);
+        sort($qbCreditMemos);
 
         $fmt = new \NumberFormatter('en_US', \NumberFormatter::CURRENCY);
 
