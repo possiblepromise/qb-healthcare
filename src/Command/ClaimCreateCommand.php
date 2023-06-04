@@ -85,6 +85,8 @@ final class ClaimCreateCommand extends Command
 
         $io->definitionList(
             'Claim Summary',
+            ['Claim ID' => $hcfa->claimId],
+            ['Date' => $hcfa->billedDate->format('m/d/Y')],
             ['Payer' => $summary->getPayer()],
             ['Billed amount' => $fmt->formatCurrency((float) $summary->getBilledAmount(), 'USD')],
             ['Contracted amount' => $fmt->formatCurrency((float) $summary->getContractAmount(), 'USD')],

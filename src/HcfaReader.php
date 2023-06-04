@@ -31,6 +31,18 @@ final class HcfaReader
 
         $fileId = $matches['fileId'];
 
+        $matched = preg_match('/Date Uploaded:\s*(?<billedDate>\d{1,2}\/\d{1,2}\/\d{4})/', $data, $matches);
+
+        if ($matched === 0) {
+            self::throwInvalidFileError();
+        }
+
+        $billedDate = \DateTimeImmutable::createFromFormat('n/j/Y', $matches['billedDate']);
+
+        if ($billedDate === false) {
+            self::throwInvalidFileError();
+        }
+
         $matched = preg_match_all(
             '/\s+\d+\)\s+(?<claimId>\d+)\s+[^ ]+\s+(?<lastName>[^ ]+)\s+(?<firstName>.+?)\s*\d{2}\/\d{2}\/\d{4}\s+(?<fromDate>\d{2}\/\d{2}\/\d{4})\s+(?<toDate>\d{2}\/\d{2}\/\d{4})/',
             $data,
@@ -59,6 +71,7 @@ final class HcfaReader
             fileId: $fileId,
             payerId: $payerId,
             total: $total,
+            billedDate: $billedDate->modify('00:00:00'),
             claimId: $claimId,
             lastName: $lastName,
             firstName: $firstName,

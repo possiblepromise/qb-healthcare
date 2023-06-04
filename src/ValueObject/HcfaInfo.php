@@ -11,6 +11,7 @@ final class HcfaInfo
         public readonly string $payerId,
         /** @var numeric-string */
         public readonly string $total,
+        public readonly \DateTimeImmutable $billedDate,
         public readonly string $claimId,
         public readonly string $lastName,
         public readonly string $firstName,
