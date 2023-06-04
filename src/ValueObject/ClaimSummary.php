@@ -7,6 +7,7 @@ namespace PossiblePromise\QbHealthcare\ValueObject;
 final class ClaimSummary
 {
     public function __construct(
+        private readonly string $payer,
         /** @var numeric-string */
         private readonly string $billedAmount,
         /** @var numeric-string */
@@ -14,6 +15,11 @@ final class ClaimSummary
         /** @var numeric-string */
         private readonly string $coinsurance,
     ) {
+    }
+
+    public function getPayer(): string
+    {
+        return $this->payer;
     }
 
     /**

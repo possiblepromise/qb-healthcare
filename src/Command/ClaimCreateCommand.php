@@ -85,6 +85,7 @@ final class ClaimCreateCommand extends Command
 
         $io->definitionList(
             'Claim Summary',
+            ['Payer' => $summary->getPayer()],
             ['Billed amount' => $fmt->formatCurrency((float) $summary->getBilledAmount(), 'USD')],
             ['Contracted amount' => $fmt->formatCurrency((float) $summary->getContractAmount(), 'USD')],
             ['Contractual adjustment' => $fmt->formatCurrency((float) $summary->getContractualAdjustment(), 'USD')],

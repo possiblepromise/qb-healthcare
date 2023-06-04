@@ -92,7 +92,7 @@ final class ChargesRepository
         $result = $this->charges->aggregate([
             ['$match' => self::getClaimQuery($client, $payer, $startDate, $endDate, $charges)],
             ['$group' => [
-                '_id' => '$clientName',
+                '_id' => '$primaryPaymentInfo.payer.name',
                 'billedAmount' => ['$sum' => '$billedAmount'],
                 'contractAmount' => ['$sum' => '$contractAmount'],
                 'coinsurance' => ['$sum' => '$primaryPaymentInfo.coinsurance'],
@@ -117,7 +117,7 @@ final class ChargesRepository
         /** @var numeric-string $coinsurance */
         $coinsurance = (string) $summary['coinsurance'];
 
-        return new ClaimSummary($billedAmount, $contractAmount, $coinsurance);
+        return new ClaimSummary($summary['_id'], $billedAmount, $contractAmount, $coinsurance);
     }
 
     /**
