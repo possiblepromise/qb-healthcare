@@ -12,7 +12,7 @@ final class HcfaReader
     {
         $data = file_get_contents($file);
 
-        $matched = preg_match_all('/\d+\s+[^(]+\((?<payerId>\d+)\)\s+(?<claims>\d+)\s+(?<total>\$[0-9,.]+)/', $data, $matches, PREG_SET_ORDER);
+        $matched = preg_match_all('/\d+\s+.+?\((?<payerId>\d+)\)\s+(?<claims>\d+)\s+(?<total>\$[0-9,.]+)/', $data, $matches, PREG_SET_ORDER);
 
         if ($matched === 0) {
             self::throwInvalidFileError();
