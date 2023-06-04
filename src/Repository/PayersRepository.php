@@ -46,20 +46,4 @@ final class PayersRepository
         /** @var Payer|null */
         return $result->current();
     }
-
-    /**
-     * @return string[]
-     */
-    public function getPayers(): array
-    {
-        $result = $this->payers->find([], ['name' => 1]);
-
-        $payers = [];
-        /** @var Payer $payer */
-        foreach ($result as $payer) {
-            $payers[] = $payer->getName();
-        }
-
-        return $payers;
-    }
 }

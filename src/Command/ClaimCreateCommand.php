@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace PossiblePromise\QbHealthcare\Command;
 
+use PossiblePromise\QbHealthcare\HcfaReader;
 use PossiblePromise\QbHealthcare\Repository\ChargesRepository;
 use PossiblePromise\QbHealthcare\Repository\PayersRepository;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
@@ -18,7 +20,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 )]
 final class ClaimCreateCommand extends Command
 {
-    public function __construct(private readonly ChargesRepository $charges, private readonly PayersRepository $payers)
+    public function __construct(private readonly ChargesRepository $charges, private readonly PayersRepository $payers, private readonly HcfaReader $reader)
     {
         parent::__construct();
     }
@@ -27,6 +29,7 @@ final class ClaimCreateCommand extends Command
     {
         $this
             ->setHelp('Allows you to create a claim.')
+            ->addArgument('hcfa', InputArgument::REQUIRED, 'HCFA file to read.')
         ;
     }
 
@@ -36,19 +39,15 @@ final class ClaimCreateCommand extends Command
 
         $io->title('Create Claim');
 
-        $io->text('Please provide the following information first:');
-        $io->newLine();
+        $file = (string) $input->getArgument('hcfa');
+        $hcfa = $this->reader->read($file);
 
-        $fileId = (string) $io->ask('File ID');
-        $claimId = (string) $io->ask('Claim ID');
+        $client = $this->charges->findClient($hcfa->lastName, $hcfa->firstName);
+        if ($client === null) {
+            $io->error('Unable to find a matching client from the given claim.');
 
-        $client = (string) $io->choice('Client', $this->charges->getClients());
-        $payer = (string) $io->choice('Payer', $this->payers->getPayers());
-
-        /** @var \DateTimeImmutable $startDate */
-        $startDate = $io->ask('Start date', null, self::validateDate(...));
-        /** @var \DateTimeImmutable $endDate */
-        $endDate = $io->ask('End date', null, self::validateDate(...));
+            return Command::INVALID;
+        }
 
         $fmt = new \NumberFormatter('en_US', \NumberFormatter::CURRENCY);
 
@@ -56,7 +55,7 @@ final class ClaimCreateCommand extends Command
         $selectedCharges = [];
 
         while (true) {
-            $summary = $this->charges->getSummary($client, $payer, $startDate, $endDate, $selectedCharges);
+            $summary = $this->charges->getSummary($client, $hcfa->payerId, $hcfa->fromDate, $hcfa->toDate, $selectedCharges);
 
             if ($summary === null) {
                 $io->error('No charges found for the given parameters.');
@@ -64,20 +63,13 @@ final class ClaimCreateCommand extends Command
                 return Command::INVALID;
             }
 
-            $io->definitionList(
-                'Claim Summary',
-                ['Billed amount' => $fmt->formatCurrency((float) $summary->getBilledAmount(), 'USD')],
-                ['Contracted amount' => $fmt->formatCurrency((float) $summary->getContractAmount(), 'USD')],
-                ['Contractual adjustment' => $fmt->formatCurrency((float) $summary->getContractualAdjustment(), 'USD')],
-                ['Coinsurance' => $fmt->formatCurrency((float) $summary->getCoinsurance(), 'USD')],
-                ['Total discount' => $fmt->formatCurrency((float) $summary->getTotalDiscount(), 'USD')],
-                ['Total' => $fmt->formatCurrency((float) $summary->getTotal(), 'USD')]
-            );
-
-            if ($io->confirm('Does this look correct?', false)) {
+            if (bccomp($summary->getBilledAmount(), $hcfa->total, 2) === 0) {
                 break;
             }
-            $charges = $this->charges->getClaimCharges($client, $payer, $startDate, $endDate);
+
+            $io->caution('The total of the provided claim file does not match the total of the matched charges.');
+
+            $charges = $this->charges->getClaimCharges($client, $hcfa->payerId, $hcfa->fromDate, $hcfa->toDate);
             $choices = [];
 
             foreach ($charges as $charge) {
@@ -91,7 +83,17 @@ final class ClaimCreateCommand extends Command
             $selectedCharges = $io->choice('Charges to select', $choices, null, true);
         }
 
-        $charges = $this->charges->getClaimCharges($client, $payer, $startDate, $endDate, $selectedCharges);
+        $io->definitionList(
+            'Claim Summary',
+            ['Billed amount' => $fmt->formatCurrency((float) $summary->getBilledAmount(), 'USD')],
+            ['Contracted amount' => $fmt->formatCurrency((float) $summary->getContractAmount(), 'USD')],
+            ['Contractual adjustment' => $fmt->formatCurrency((float) $summary->getContractualAdjustment(), 'USD')],
+            ['Coinsurance' => $fmt->formatCurrency((float) $summary->getCoinsurance(), 'USD')],
+            ['Total discount' => $fmt->formatCurrency((float) $summary->getTotalDiscount(), 'USD')],
+            ['Total' => $fmt->formatCurrency((float) $summary->getTotal(), 'USD')]
+        );
+
+        $charges = $this->charges->getClaimCharges($client, $hcfa->payerId, $hcfa->fromDate, $hcfa->toDate, $selectedCharges);
 
         $io->section('Claim Charges');
 
@@ -132,18 +134,18 @@ final class ClaimCreateCommand extends Command
         $qbCreditNumber = (string) $io->ask('QB credit memo number');
 
         $this->charges->processClaim(
-            $fileId,
-            $claimId,
+            $hcfa->fileId,
+            $hcfa->claimId,
             $client,
-            $payer,
-            $startDate,
-            $endDate,
+            $hcfa->payerId,
+            $hcfa->fromDate,
+            $hcfa->toDate,
             $qbInvoiceNumber,
             $qbCreditNumber,
             $selectedCharges
         );
 
-        $io->success(sprintf('Claim %s has been processed successfully.', $claimId));
+        $io->success(sprintf('Claim %s has been processed successfully.', $hcfa->claimId));
 
         return Command::SUCCESS;
     }

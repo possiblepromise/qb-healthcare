@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PossiblePromise\QbHealthcare\Repository;
 
 use MongoDB\BSON\Decimal128;
+use MongoDB\BSON\Regex;
 use MongoDB\BSON\UTCDateTime;
 use MongoDB\Collection;
 use MongoDB\Model\BSONIterator;
@@ -75,30 +76,6 @@ final class ChargesRepository
         }
 
         return $imported;
-    }
-
-    /**
-     * @return string[]
-     */
-    public function getClients(): array
-    {
-        $result = $this->charges->aggregate([
-            ['$group' => [
-                '_id' => '$clientName',
-            ]],
-            ['$sort' => [
-                '_id' => 1,
-            ]],
-        ]);
-
-        $clients = [];
-
-        /** @var array{_id: string} $client */
-        foreach ($result as $client) {
-            $clients[] = $client['_id'];
-        }
-
-        return $clients;
     }
 
     /**
@@ -261,6 +238,32 @@ final class ChargesRepository
         return (string) $total['total'];
     }
 
+    public function findClient(string $lastName, string $firstName): ?string
+    {
+        /** @var BSONIterator $result */
+        $result = $this->charges->aggregate([
+            ['$match' => [
+                'clientName' => [
+                    '$regex' => new Regex('' . $lastName . ',? ' . $firstName . '', 'i'),
+                ],
+            ]],
+            ['$project' => [
+                'clientName' => true,
+            ]],
+        ]);
+
+        $result->next();
+
+        if (!$result->valid()) {
+            return null;
+        }
+
+        /** @var array{clientName: string} $record */
+        $record = $result->current();
+
+        return $record['clientName'];
+    }
+
     /**
      * @param numeric-string[] $charges
      */
@@ -278,7 +281,7 @@ final class ChargesRepository
         } else {
             $query = [
                 'clientName' => $client,
-                'primaryPaymentInfo.payer.name' => $payer,
+                'primaryPaymentInfo.payer._id' => $payer,
                 'serviceDate' => [
                     '$gte' => new UTCDateTime($startDate),
                     '$lte' => new UTCDateTime($endDate),
