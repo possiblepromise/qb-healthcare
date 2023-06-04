@@ -19,6 +19,11 @@ final class Service implements Persistable
     ) {
     }
 
+    public function getBillingCode(): string
+    {
+        return $this->billingCode;
+    }
+
     public function getName(): string
     {
         return $this->name;

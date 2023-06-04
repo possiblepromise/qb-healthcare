@@ -12,6 +12,7 @@ use Webmozart\Assert\Assert;
 final class Charge implements Persistable
 {
     public function __construct(
+        /** @var numeric-string */
         private string $chargeLine,
         private \DateTime $serviceDate,
         private string $clientName,
@@ -31,6 +32,9 @@ final class Charge implements Persistable
     ) {
     }
 
+    /**
+     * @return numeric-string
+     */
     public function getChargeLine(): string
     {
         return $this->chargeLine;
@@ -105,6 +109,10 @@ final class Charge implements Persistable
     public function bsonUnserialize(array $data): void
     {
         Assert::string($data['_id']);
+        if (!is_numeric($data['_id'])) {
+            throw new \InvalidArgumentException('Charge line must be numeric.');
+        }
+
         Assert::isInstanceOf($data['serviceDate'], UTCDateTime::class);
         Assert::string($data['clientName']);
         Assert::isInstanceOf($data['service'], Service::class);

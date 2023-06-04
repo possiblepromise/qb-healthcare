@@ -11,6 +11,7 @@ use Symfony\Component\Serializer\Annotation\SerializedName;
 final class ChargeLine
 {
     public function __construct(
+        /** @var numeric-string */
         #[SerializedName('Charge Line')]
         public string $chargeLine,
         #[SerializedName('Date of Service')]
