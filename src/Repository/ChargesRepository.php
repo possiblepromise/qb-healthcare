@@ -11,7 +11,6 @@ use MongoDB\Collection;
 use MongoDB\Model\BSONIterator;
 use PossiblePromise\QbHealthcare\Database\MongoClient;
 use PossiblePromise\QbHealthcare\Entity\Charge;
-use PossiblePromise\QbHealthcare\Entity\ClaimStatus;
 use PossiblePromise\QbHealthcare\Entity\PaymentInfo;
 use PossiblePromise\QbHealthcare\ValueObject\ChargeLine;
 use PossiblePromise\QbHealthcare\ValueObject\ChargesImported;
@@ -66,7 +65,7 @@ final class ChargesRepository
             );
 
             $result = $this->charges->updateOne(
-                ['_id' => $charge->getChargeLine(), 'status' => ClaimStatus::pending],
+                ['_id' => $charge->getChargeLine()],
                 ['$set' => $charge],
                 ['upsert' => true]
             );

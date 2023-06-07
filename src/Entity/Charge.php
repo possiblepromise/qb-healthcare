@@ -98,11 +98,6 @@ final class Charge implements Persistable
             'billedUnits' => $this->billedUnits,
             'primaryPaymentInfo' => $this->primaryPaymentInfo,
             'payerBalance' => $this->payerBalance ? new Decimal128($this->payerBalance) : new Decimal128('0.00'),
-            'status' => $this->status,
-            'fileId' => $this->fileId,
-            'claimId' => $this->claimId,
-            'qbInvoiceNumber' => $this->qbInvoiceNumber,
-            'qbCreditMemoNumber' => $this->qbCreditMemoNumber,
         ];
     }
 
