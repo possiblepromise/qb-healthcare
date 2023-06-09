@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PossiblePromise\QbHealthcare\ValueObject;
 
-final class ChargesImported
+final class ImportedRecords
 {
     public function __construct(
         public int $new = 0,

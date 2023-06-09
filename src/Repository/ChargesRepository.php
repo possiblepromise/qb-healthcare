@@ -13,8 +13,8 @@ use PossiblePromise\QbHealthcare\Database\MongoClient;
 use PossiblePromise\QbHealthcare\Entity\Charge;
 use PossiblePromise\QbHealthcare\Entity\PaymentInfo;
 use PossiblePromise\QbHealthcare\ValueObject\ChargeLine;
-use PossiblePromise\QbHealthcare\ValueObject\ChargesImported;
 use PossiblePromise\QbHealthcare\ValueObject\ClaimSummary;
+use PossiblePromise\QbHealthcare\ValueObject\ImportedRecords;
 
 final class ChargesRepository
 {
@@ -28,9 +28,9 @@ final class ChargesRepository
     /**
      * @param ChargeLine[] $lines
      */
-    public function import(array $lines): ChargesImported
+    public function import(array $lines): ImportedRecords
     {
-        $imported = new ChargesImported();
+        $imported = new ImportedRecords();
 
         foreach ($lines as $line) {
             $payer = $this->payers->findOneByNameAndService($line->primaryPayer, $line->billingCode);
@@ -261,6 +261,26 @@ final class ChargesRepository
         $record = $result->current();
 
         return $record['clientName'];
+    }
+
+    /**
+     * @psalm-suppress InvalidReturnStatement
+     * @psalm-suppress InvalidReturnType
+     */
+    public function findByAppointmentData(
+        string $payerName,
+        \DateTime $serviceDate,
+        string $clientName,
+        string $billingCode,
+        ?int $billingUnits
+    ): ?Charge {
+        return $this->charges->findOne([
+            'serviceDate' => new UTCDateTime($serviceDate),
+            'clientName' => $clientName,
+            'billedUnits' => $billingUnits,
+            'primaryPaymentInfo.payer.name' => $payerName,
+            'service._id' => $billingCode,
+        ]);
     }
 
     /**
