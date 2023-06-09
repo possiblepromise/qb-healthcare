@@ -8,6 +8,10 @@ services:
     exclude:
       - '../src/Entity/'
       - '../src/ValueObject/'
+  PossiblePromise\QbHealthcare\QuickBooks:
+    arguments:
+      - '%env(QB_CLIENT_ID)%'
+      - '%env(QB_CLIENT_SECRET)%'
 
   PossiblePromise\QbHealthcare\Application:
     public: true

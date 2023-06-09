@@ -7,6 +7,12 @@ use PossiblePromise\QbHealthcare\Application;
 use Symfony\Component\Config\FileLocator;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Loader\YamlFileLoader;
+use Symfony\Component\Dotenv\Dotenv;
+
+error_reporting(E_ALL & ~E_DEPRECATED);
+
+$dotenv = new Dotenv();
+$dotenv->load(__DIR__ . '/.env');
 
 $container = new ContainerBuilder();
 $loader = new YamlFileLoader($container, new FileLocator(__DIR__ . '/config'));
@@ -16,7 +22,7 @@ $container->registerForAutoconfiguration(\Symfony\Component\Console\Command\Comm
     ->addTag('console.command')
 ;
 
-$container->compile();
+$container->compile(true);
 
 $application = $container->get(Application::class);
 assert($application instanceof Application);

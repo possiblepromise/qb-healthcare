@@ -29,5 +29,10 @@
                 <directory name="src/Command/" />
             </errorLevel>
         </UnusedClass>
+        <UndefinedDocblockClass>
+            <errorLevel type="suppress">
+                <file name="src/Command/AuthenticateCommand.php" />
+            </errorLevel>
+        </UndefinedDocblockClass>
     </issueHandlers>
 </psalm>
