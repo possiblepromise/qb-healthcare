@@ -12,15 +12,23 @@ final class QuickBooks
     {
     }
 
-    public function getDataService(): DataService
+    public function getDataService(string $accesstoken = null, string $refreshToken = null, string $realmId = null): DataService
     {
-        return DataService::Configure([
+        $config = [
             'auth_mode' => 'oauth2',
             'ClientID' => $this->clientId,
             'ClientSecret' => $this->clientSecret,
             'RedirectURI' => 'https://developer.intuit.com/v2/OAuth2Playground/RedirectUrl',
             'scope' => 'com.intuit.quickbooks.accounting',
-            'baseUrl' => 'development',
-        ]);
+            'baseUrl' => 'production',
+        ];
+
+        if ($accesstoken && $refreshToken && $realmId) {
+            $config['accessTokenKey'] = $accesstoken;
+            $config['refreshTokenKey'] = $refreshToken;
+            $config['QBORealmID'] = $realmId;
+        }
+
+        return DataService::Configure($config);
     }
 }

@@ -7,6 +7,7 @@ namespace PossiblePromise\QbHealthcare\Command;
 use MongoDB\BSON\UTCDateTime;
 use PossiblePromise\QbHealthcare\Database\MongoClient;
 use PossiblePromise\QbHealthcare\QuickBooks;
+use QuickBooksOnline\API\Core\HttpClients\FaultHandler;
 use QuickBooksOnline\API\Core\OAuth\OAuth2\OAuth2LoginHelper;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
@@ -52,6 +53,15 @@ final class AuthenticateCommand extends Command
         $accessToken = $loginHelper->exchangeAuthorizationCodeForToken($code, $realmId);
         $dataService->updateOAuth2Token($accessToken);
         $companyInfo = $dataService->getCompanyInfo();
+        /** @var FaultHandler|false $error */
+        $error = $dataService->getLastError();
+        if ($error) {
+            /** @psalm-suppress InvalidOperand */
+            $io->error('Encountered HTTP error ' . $error->getHttpStatusCode());
+            $io->block($error->getResponseBody(), null, 'fg=white;bg=red', ' ', true);
+
+            return Command::FAILURE;
+        }
 
         /** @var string $accessTokenExpiration */
         $accessTokenExpiration = $accessToken->getAccessTokenExpiresAt();
