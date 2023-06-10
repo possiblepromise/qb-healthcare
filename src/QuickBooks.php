@@ -4,15 +4,18 @@ declare(strict_types=1);
 
 namespace PossiblePromise\QbHealthcare;
 
+use PossiblePromise\QbHealthcare\Database\MongoClient;
+use PossiblePromise\QbHealthcare\Repository\CompaniesRepository;
+use QuickBooksOnline\API\Core\OAuth\OAuth2\OAuth2LoginHelper;
 use QuickBooksOnline\API\DataService\DataService;
 
 final class QuickBooks
 {
-    public function __construct(private string $clientId, private string $clientSecret)
+    public function __construct(private string $clientId, private string $clientSecret, private CompaniesRepository $companies)
     {
     }
 
-    public function getDataService(string $accesstoken = null, string $refreshToken = null, string $realmId = null): DataService
+    public function getDataService(bool $newAuth = false): DataService
     {
         $config = [
             'auth_mode' => 'oauth2',
@@ -23,12 +26,33 @@ final class QuickBooks
             'baseUrl' => 'production',
         ];
 
-        if ($accesstoken && $refreshToken && $realmId) {
-            $config['accessTokenKey'] = $accesstoken;
-            $config['refreshTokenKey'] = $refreshToken;
-            $config['QBORealmID'] = $realmId;
+        $company = $this->companies->findActiveCompany();
+
+        if ($newAuth === false) {
+            if ($company === null) {
+                throw new \InvalidArgumentException('No currently active company found.');
+            }
+
+            $config['accessTokenKey'] = $company->accessToken->token;
+            $config['refreshTokenKey'] = $company->refreshToken->token;
+            $config['QBORealmID'] = $company->realmId;
         }
 
-        return DataService::Configure($config);
+        $dataService = DataService::Configure($config);
+
+        $this->refresh($company, $dataService);
+
+        return $dataService;
+    }
+
+    private function refresh(?ValueObject\Company $company, DataService $dataService): void
+    {
+        if ($company && new \DateTimeImmutable() > $company->accessToken->expires) {
+            /** @var OAuth2LoginHelper $loginHelper */
+            $loginHelper = $dataService->getOAuth2LoginHelper();
+            $newAccessToken = $loginHelper->refreshToken();
+            $dataService->updateOAuth2Token($newAccessToken);
+            $this->companies->updateTokens($newAccessToken);
+        }
     }
 }

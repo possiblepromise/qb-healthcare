@@ -7,6 +7,9 @@ namespace PossiblePromise\QbHealthcare\Command;
 use MongoDB\BSON\UTCDateTime;
 use PossiblePromise\QbHealthcare\Database\MongoClient;
 use PossiblePromise\QbHealthcare\QuickBooks;
+use PossiblePromise\QbHealthcare\Repository\CompaniesRepository;
+use PossiblePromise\QbHealthcare\ValueObject\Company;
+use PossiblePromise\QbHealthcare\ValueObject\Token;
 use QuickBooksOnline\API\Core\HttpClients\FaultHandler;
 use QuickBooksOnline\API\Core\OAuth\OAuth2\OAuth2LoginHelper;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -21,13 +24,9 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 )]
 final class AuthenticateCommand extends Command
 {
-    private \MongoDB\Collection $companies;
-
-    public function __construct(private QuickBooks $qb, MongoClient $client)
+    public function __construct(private QuickBooks $qb, private CompaniesRepository $companies)
     {
         parent::__construct();
-
-        $this->companies = $client->getDatabase()->companies;
     }
 
     protected function configure(): void
@@ -46,7 +45,8 @@ final class AuthenticateCommand extends Command
         $code = (string) $io->ask('Authorization code');
         $realmId = (string) $io->ask('Realm ID');
 
-        $dataService = $this->qb->getDataService();
+        $dataService = $this->qb->getDataService(true);
+
         /** @var OAuth2LoginHelper $loginHelper */
         $loginHelper = $dataService->getOAuth2LoginHelper();
 
@@ -57,8 +57,7 @@ final class AuthenticateCommand extends Command
         $error = $dataService->getLastError();
         if ($error) {
             /** @psalm-suppress InvalidOperand */
-            $io->error('Encountered HTTP error ' . $error->getHttpStatusCode());
-            $io->block($error->getResponseBody(), null, 'fg=white;bg=red', ' ', true);
+            $io->error($error->getIntuitErrorMessage());
 
             return Command::FAILURE;
         }
@@ -67,37 +66,18 @@ final class AuthenticateCommand extends Command
         $accessTokenExpiration = $accessToken->getAccessTokenExpiresAt();
         /** @var string $refreshTokenExpiration */
         $refreshTokenExpiration = $accessToken->getRefreshTokenExpiresAt();
-        $record = [
-            'companyName' => $companyInfo->CompanyName,
-            'accessToken' => [
-                'token' => $accessToken->getAccessToken(),
-                'expires' => $this->formatDate($accessTokenExpiration),
-            ],
-            'refreshToken' => [
-                'token' => $accessToken->getRefreshToken(),
-                'expires' => $this->formatDate($refreshTokenExpiration),
-            ],
-            'realmId' => $accessToken->getRealmID(),
-        ];
 
-        $this->companies->updateOne(
-            ['realmId' => $accessToken->getRealmID()],
-            ['$set' => $record],
-            ['upsert' => true]
+        $company = new Company(
+            realmId: $accessToken->getRealmID(),
+            companyName: $companyInfo->CompanyName,
+            accessToken: Token::fromOauth($accessToken->getAccessToken(), $accessTokenExpiration),
+            refreshToken: Token::fromOauth($accessToken->getRefreshToken(), $refreshTokenExpiration)
         );
+
+        $this->companies->save($company);
 
         $io->success('You have been authenticated.');
 
         return Command::SUCCESS;
-    }
-
-    private function formatDate(string $dateString): UTCDateTime
-    {
-        $date = \DateTimeImmutable::createFromFormat('Y/m/d H:i:s', $dateString);
-        if ($date === false) {
-            throw new \InvalidArgumentException('Date could not be parsed.');
-        }
-
-        return new UTCDateTime($date);
     }
 }
