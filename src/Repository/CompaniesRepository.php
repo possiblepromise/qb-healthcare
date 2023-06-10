@@ -51,7 +51,7 @@ class CompaniesRepository
             ['_id' => $newAccessToken->getRealmID()],
             ['$set' => [
                 'accessToken' => Token::fromOauth($newAccessToken->getAccessToken(), $accessTokenExpiration),
-                'refreshtoken' => Token::fromOauth($newAccessToken->getRefreshToken(), $refreshTokenExpiresAt),
+                'refreshToken' => Token::fromOauth($newAccessToken->getRefreshToken(), $refreshTokenExpiresAt),
             ]]
         );
     }
