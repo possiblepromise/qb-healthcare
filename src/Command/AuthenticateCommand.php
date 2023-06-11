@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace PossiblePromise\QbHealthcare\Command;
 
-use MongoDB\BSON\UTCDateTime;
-use PossiblePromise\QbHealthcare\Database\MongoClient;
 use PossiblePromise\QbHealthcare\QuickBooks;
 use PossiblePromise\QbHealthcare\Repository\CompaniesRepository;
 use PossiblePromise\QbHealthcare\ValueObject\Company;
