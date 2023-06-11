@@ -16,7 +16,6 @@ final class Appointment implements Persistable
         /** @var numeric-string */
         private string $id,
         private Payer $payer,
-        private Service $service,
         private \DateTime $serviceDate,
         private string $clientName,
         private int $units,
@@ -50,7 +49,6 @@ final class Appointment implements Persistable
         $data = $this->serializeCompanyId([
             '_id' => $this->id,
             'payer' => $this->payer,
-            'service' => $this->service,
             'serviceDate' => new UTCDateTime($this->serviceDate),
             'clientName' => $this->clientName,
             'units' => $this->units,
@@ -69,7 +67,6 @@ final class Appointment implements Persistable
     {
         $this->id = $data['_id'];
         $this->payer = $data['payer'];
-        $this->service = $data['service'];
         $this->serviceDate = $data['serviceDate']->toDateTime();
         $this->clientName = $data['clientName'];
         $this->units = $data['units'];

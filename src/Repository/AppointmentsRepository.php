@@ -45,12 +45,9 @@ final class AppointmentsRepository
                 throw new \UnexpectedValueException('No payer found');
             }
 
-            $service = $payer->getServices()[0];
-
             $appointment = new Appointment(
                 id: $line->id,
                 payer: $payer,
-                service: $service,
                 serviceDate: $line->serviceDate,
                 clientName: $line->clientName,
                 units: $line->units,
