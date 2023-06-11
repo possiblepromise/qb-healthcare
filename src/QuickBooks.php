@@ -4,13 +4,14 @@ declare(strict_types=1);
 
 namespace PossiblePromise\QbHealthcare;
 
-use PossiblePromise\QbHealthcare\Database\MongoClient;
 use PossiblePromise\QbHealthcare\Repository\CompaniesRepository;
 use QuickBooksOnline\API\Core\OAuth\OAuth2\OAuth2LoginHelper;
 use QuickBooksOnline\API\DataService\DataService;
 
 final class QuickBooks
 {
+    private ?ValueObject\Company $activeCompany;
+
     public function __construct(private string $clientId, private string $clientSecret, private CompaniesRepository $companies)
     {
     }
@@ -36,6 +37,9 @@ final class QuickBooks
             $config['accessTokenKey'] = $company->accessToken->token;
             $config['refreshTokenKey'] = $company->refreshToken->token;
             $config['QBORealmID'] = $company->realmId;
+
+            // Set active company so it can be retrieved later
+            $this->activeCompany = $company;
         }
 
         $dataService = DataService::Configure($config);
@@ -43,6 +47,11 @@ final class QuickBooks
         $this->refresh($company, $dataService);
 
         return $dataService;
+    }
+
+    public function getActiveCompany(): ?ValueObject\Company
+    {
+        return $this->activeCompany;
     }
 
     private function refresh(?ValueObject\Company $company, DataService $dataService): void
