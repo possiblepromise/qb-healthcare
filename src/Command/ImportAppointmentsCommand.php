@@ -1,5 +1,7 @@
 <?php
 
+/** @noinspection PhpUnused */
+
 declare(strict_types=1);
 
 namespace PossiblePromise\QbHealthcare\Command;
@@ -20,7 +22,7 @@ use Webmozart\Assert\Assert;
 )]
 final class ImportAppointmentsCommand extends Command
 {
-    public function __construct(private AppointmentSerializer $serializer, private AppointmentsRepository $repository)
+    public function __construct(private AppointmentSerializer $serializer, private AppointmentsRepository $appointments)
     {
         parent::__construct();
     }
@@ -49,7 +51,7 @@ final class ImportAppointmentsCommand extends Command
 
         $appointmentLines = $this->serializer->unserialize($file);
 
-        $imported = $this->repository->import($appointmentLines);
+        $imported = $this->appointments->import($appointmentLines);
 
         $io->success(
             sprintf(
@@ -59,6 +61,12 @@ final class ImportAppointmentsCommand extends Command
                 $imported->modified
             )
         );
+
+        $matchedAppointments = $this->appointments->findMatches();
+
+        if ($matchedAppointments !== 0) {
+            $io->success("Matched {$matchedAppointments} appointments to charges.");
+        }
 
         return Command::SUCCESS;
     }
