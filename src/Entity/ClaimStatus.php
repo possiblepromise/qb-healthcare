@@ -6,8 +6,6 @@ namespace PossiblePromise\QbHealthcare\Entity;
 
 enum ClaimStatus: string
 {
-    case pending = 'pending';
-
     case processed = 'processed';
 
     case paid = 'paid';
