@@ -23,7 +23,7 @@ final class Appointment implements Persistable
         /** @var numeric-string */
         private string $charge,
         private ?\DateTime $dateBilled,
-        private ?string $chargeId
+        private ?string $chargeId = null
     ) {
     }
 
@@ -47,7 +47,7 @@ final class Appointment implements Persistable
 
     public function bsonSerialize(): array
     {
-        return $this->serializeCompanyId([
+        $data = $this->serializeCompanyId([
             '_id' => $this->id,
             'payer' => $this->payer,
             'service' => $this->service,
@@ -56,8 +56,13 @@ final class Appointment implements Persistable
             'units' => $this->units,
             'charge' => new Decimal128($this->charge),
             'dateBilled' => $this->dateBilled ? new UTCDateTime($this->dateBilled) : null,
-            'chargeId' => $this->chargeId,
         ]);
+
+        if ($this->chargeId !== null) {
+            $data['chargeId'] = $this->chargeId;
+        }
+
+        return $data;
     }
 
     public function bsonUnserialize(array $data): void
@@ -68,10 +73,12 @@ final class Appointment implements Persistable
         $this->serviceDate = $data['serviceDate']->toDateTime();
         $this->clientName = $data['clientName'];
         $this->units = $data['units'];
-        /** @psalm-suppress PropertyTypeCoercion */
         $this->charge = ((string) $data['charge']);
         $this->dateBilled = $data['dateBilled'] ? $data['dateBilled']->toDateTime() : null;
-        $this->chargeId = $data['chargeId'];
+
+        if (isset($data['chargeId'])) {
+            $this->chargeId = $data['chargeId'];
+        }
 
         $this->unserializeCompanyId($data);
     }
