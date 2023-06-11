@@ -8,12 +8,13 @@ use MongoDB\Collection;
 use MongoDB\Model\BSONIterator;
 use PossiblePromise\QbHealthcare\Database\MongoClient;
 use PossiblePromise\QbHealthcare\Entity\Payer;
+use PossiblePromise\QbHealthcare\QuickBooks;
 
 final class PayersRepository
 {
     private Collection $payers;
 
-    public function __construct(MongoClient $client)
+    public function __construct(MongoClient $client, private QuickBooks $qb)
     {
         $this->payers = $client->getDatabase()->payers;
     }
@@ -24,6 +25,8 @@ final class PayersRepository
     public function import(array $data): void
     {
         foreach ($data as $payer) {
+            $payer->setQbCompanyId($this->qb->getActiveCompany()->realmId);
+
             $this->payers->updateOne(
                 ['_id' => $payer->getId()],
                 ['$set' => $payer],

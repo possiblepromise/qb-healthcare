@@ -7,10 +7,11 @@ namespace PossiblePromise\QbHealthcare\Entity;
 use MongoDB\BSON\Persistable;
 use MongoDB\Model\BSONArray;
 use PossiblePromise\QbHealthcare\ValueObject\PayerLine;
-use Webmozart\Assert\Assert;
 
 final class Payer implements Persistable
 {
+    use BelongsToCompanyTrait;
+
     private string $id;
     private string $name;
     private string $type;
@@ -20,6 +21,8 @@ final class Payer implements Persistable
     private ?string $zip = null;
     private ?string $phone = null;
     private ?string $email = null;
+    private ?string $qbCustomerId = null;
+    private ?string $qbCategoryId = null;
 
     /**
      * @var Service[]
@@ -165,6 +168,26 @@ final class Payer implements Persistable
         return $this;
     }
 
+    public function getQbCustomerId(): ?string
+    {
+        return $this->qbCustomerId;
+    }
+
+    public function setQbCustomerId(string $qbCustomerId): void
+    {
+        $this->qbCustomerId = $qbCustomerId;
+    }
+
+    public function getQbCategoryId(): ?string
+    {
+        return $this->qbCategoryId;
+    }
+
+    public function setQbCategoryId(string $qbCategoryId): void
+    {
+        $this->qbCategoryId = $qbCategoryId;
+    }
+
     /**
      * @return Service[]
      */
@@ -182,7 +205,7 @@ final class Payer implements Persistable
 
     public function bsonSerialize(): array
     {
-        return [
+        $data = [
             '_id' => $this->id,
             'name' => $this->name,
             'type' => $this->type,
@@ -194,21 +217,20 @@ final class Payer implements Persistable
             'email' => $this->email,
             'services' => $this->services,
         ];
+
+        if ($this->qbCustomerId) {
+            $data['qbCustomerId'] = $this->qbCustomerId;
+        }
+
+        if ($this->qbCategoryId) {
+            $data['qbCategoryId'] = $this->qbCategoryId;
+        }
+
+        return $this->serializeCompanyId($data);
     }
 
     public function bsonUnserialize(array $data): void
     {
-        Assert::string($data['_id']);
-        Assert::string($data['name']);
-        Assert::string($data['type']);
-        Assert::nullOrString($data['address']);
-        Assert::nullOrString($data['city']);
-        Assert::nullOrString($data['state']);
-        Assert::nullOrString($data['zip']);
-        Assert::nullOrString($data['phone']);
-        Assert::nullOrString($data['email']);
-        Assert::isInstanceOfAny($data['services'], [BSONArray::class, Service::class]);
-
         $this->id = $data['_id'];
         $this->name = $data['name'];
         $this->type = $data['type'];
@@ -220,11 +242,19 @@ final class Payer implements Persistable
         $this->email = $data['email'];
 
         if ($data['services'] instanceof BSONArray) {
-            $services = $data['services']->getArrayCopy();
-            Assert::allIsInstanceOf($services, Service::class);
-            $this->services = $services;
+            $this->services = $data['services']->getArrayCopy();
         } elseif ($data['services'] instanceof Service) {
             $this->services = [$data['services']];
         }
+
+        if (isset($data['qbCustomerId'])) {
+            $this->qbCustomerId = $data['qbCustomerId'];
+        }
+
+        if (isset($data['qbCategoryId'])) {
+            $this->qbCategoryId = $data['qbCategoryId'];
+        }
+
+        $this->unserializeCompanyId($data);
     }
 }

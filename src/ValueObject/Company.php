@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace PossiblePromise\QbHealthcare\ValueObject;
 
 use MongoDB\BSON\Persistable;
@@ -13,7 +15,7 @@ use MongoDB\BSON\Persistable;
  *   active?: bool
  * }
  */
-class Company implements Persistable
+final class Company implements Persistable
 {
     public function __construct(
         public string $realmId,
@@ -21,9 +23,7 @@ class Company implements Persistable
         public Token $accessToken,
         public Token $refreshToken,
         public bool $active = true
-    )
-    {
-
+    ) {
     }
 
     /**

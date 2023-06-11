@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace PossiblePromise\QbHealthcare\Repository;
 
 use PossiblePromise\QbHealthcare\Database\MongoClient;
@@ -7,7 +9,7 @@ use PossiblePromise\QbHealthcare\ValueObject\Company;
 use PossiblePromise\QbHealthcare\ValueObject\Token;
 use QuickBooksOnline\API\Core\OAuth\OAuth2\OAuth2AccessToken;
 
-class CompaniesRepository
+final class CompaniesRepository
 {
     private \MongoDB\Collection $companies;
 
@@ -41,7 +43,8 @@ class CompaniesRepository
     /**
      * @psalm-suppress UndefinedDocblockClass
      */
-    public function updateTokens(OAuth2AccessToken $newAccessToken): void {
+    public function updateTokens(OAuth2AccessToken $newAccessToken): void
+    {
         /** @var string $accessTokenExpiration */
         $accessTokenExpiration = $newAccessToken->getAccessTokenExpiresAt();
         /** @var string $refreshTokenExpiresAt */

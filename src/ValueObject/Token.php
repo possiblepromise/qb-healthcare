@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace PossiblePromise\QbHealthcare\ValueObject;
 
 use MongoDB\BSON\Persistable;
@@ -8,14 +10,12 @@ use MongoDB\BSON\UTCDateTime;
 /**
  * @psalm-type Data=array{token: string, expires: UTCDateTime}
  */
-class Token implements Persistable
+final class Token implements Persistable
 {
     public function __construct(
         public string $token,
         public \DateTime $expires
-    )
-    {
-
+    ) {
     }
 
     public static function fromOauth(string $token, string $expires): self
@@ -35,7 +35,7 @@ class Token implements Persistable
     {
         return [
             'token' => $this->token,
-            'expires' => new UTCDateTime($this->expires)
+            'expires' => new UTCDateTime($this->expires),
         ];
     }
 
