@@ -7,16 +7,20 @@ namespace PossiblePromise\QbHealthcare\Repository;
 use MongoDB\Collection;
 use PossiblePromise\QbHealthcare\Database\MongoClient;
 use PossiblePromise\QbHealthcare\Entity\Appointment;
+use PossiblePromise\QbHealthcare\QuickBooks;
 use PossiblePromise\QbHealthcare\ValueObject\AppointmentLine;
 use PossiblePromise\QbHealthcare\ValueObject\ImportedRecords;
 
 final class AppointmentsRepository
 {
+    use QbApiTrait;
+
     private Collection $appointments;
 
-    public function __construct(MongoClient $client, private readonly PayersRepository $payers, private ChargesRepository $charges)
+    public function __construct(MongoClient $client, private readonly PayersRepository $payers, private ChargesRepository $charges, QuickBooks $qb)
     {
         $this->appointments = $client->getDatabase()->appointments;
+        $this->qb = $qb;
     }
 
     /**
@@ -60,6 +64,8 @@ final class AppointmentsRepository
                 dateBilled: $line->dateBilled,
                 chargeId: $charge ? $charge->getChargeLine() : null
             );
+
+            $appointment->setQbCompanyId($this->qb->getActiveCompany(true)->realmId);
 
             $result = $this->appointments->updateOne(
                 ['_id' => $appointment->getId()],

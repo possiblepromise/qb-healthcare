@@ -10,7 +10,7 @@ use QuickBooksOnline\API\DataService\DataService;
 
 final class QuickBooks
 {
-    private ?ValueObject\Company $activeCompany;
+    private ?ValueObject\Company $activeCompany = null;
 
     public function __construct(private string $clientId, private string $clientSecret, private CompaniesRepository $companies)
     {
@@ -27,7 +27,7 @@ final class QuickBooks
             'baseUrl' => 'production',
         ];
 
-        $company = $this->companies->findActiveCompany();
+        $company = $this->getActiveCompany(true);
 
         if ($newAuth === false) {
             if ($company === null) {
@@ -37,9 +37,6 @@ final class QuickBooks
             $config['accessTokenKey'] = $company->accessToken->token;
             $config['refreshTokenKey'] = $company->refreshToken->token;
             $config['QBORealmID'] = $company->realmId;
-
-            // Set active company so it can be retrieved later
-            $this->activeCompany = $company;
         }
 
         $dataService = DataService::Configure($config);
@@ -49,8 +46,12 @@ final class QuickBooks
         return $dataService;
     }
 
-    public function getActiveCompany(): ?ValueObject\Company
+    public function getActiveCompany($fetch = false): ?ValueObject\Company
     {
+        if ($this->activeCompany === null && $fetch === true) {
+            $this->activeCompany = $this->companies->findActiveCompany();
+        }
+
         return $this->activeCompany;
     }
 

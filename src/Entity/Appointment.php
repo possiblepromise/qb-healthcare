@@ -8,21 +8,10 @@ use MongoDB\BSON\Decimal128;
 use MongoDB\BSON\Persistable;
 use MongoDB\BSON\UTCDateTime;
 
-/**
- * @psalm-type Data=array{
- *   _id: numeric-string,
- *   payer: Payer,
- *   service: Service,
- *   serviceDate: UTCDateTime,
- *   clientName: string,
- *    units: int,
- *   charge: Decimal128,
- *    dateBilled: UTCDateTime|null,
- *    chargeId: string|null
- * }
- */
 final class Appointment implements Persistable
 {
+    use BelongsToCompanyTrait;
+
     public function __construct(
         /** @var numeric-string */
         private string $id,
@@ -46,12 +35,9 @@ final class Appointment implements Persistable
         return $this->id;
     }
 
-    /**
-     * @return Data
-     */
     public function bsonSerialize(): array
     {
-        return [
+        return $this->serializeCompanyId([
             '_id' => $this->id,
             'payer' => $this->payer,
             'service' => $this->service,
@@ -61,12 +47,9 @@ final class Appointment implements Persistable
             'charge' => new Decimal128($this->charge),
             'dateBilled' => $this->dateBilled ? new UTCDateTime($this->dateBilled) : null,
             'chargeId' => $this->chargeId,
-        ];
+        ]);
     }
 
-    /**
-     * @param Data $data
-     */
     public function bsonUnserialize(array $data): void
     {
         $this->id = $data['_id'];
@@ -79,5 +62,7 @@ final class Appointment implements Persistable
         $this->charge = ((string) $data['charge']);
         $this->dateBilled = $data['dateBilled'] ? $data['dateBilled']->toDateTime() : null;
         $this->chargeId = $data['chargeId'];
+
+        $this->unserializeCompanyId($data);
     }
 }
