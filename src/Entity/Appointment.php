@@ -35,6 +35,16 @@ final class Appointment implements Persistable
         return $this->id;
     }
 
+    public function setChargeId(string $chargeId): void
+    {
+        $this->chargeId = $chargeId;
+    }
+
+    public function getUnits(): int
+    {
+        return $this->units;
+    }
+
     public function bsonSerialize(): array
     {
         return $this->serializeCompanyId([

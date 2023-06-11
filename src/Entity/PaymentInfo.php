@@ -27,6 +27,11 @@ final class PaymentInfo implements Persistable
     ) {
     }
 
+    public function getPayer(): Payer
+    {
+        return $this->payer;
+    }
+
     /**
      * @return numeric-string|null
      */

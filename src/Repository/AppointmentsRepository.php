@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace PossiblePromise\QbHealthcare\Repository;
 
+use MongoDB\BSON\UTCDateTime;
 use MongoDB\Collection;
 use PossiblePromise\QbHealthcare\Database\MongoClient;
 use PossiblePromise\QbHealthcare\Entity\Appointment;
+use PossiblePromise\QbHealthcare\Entity\Charge;
 use PossiblePromise\QbHealthcare\QuickBooks;
 use PossiblePromise\QbHealthcare\ValueObject\AppointmentLine;
 use PossiblePromise\QbHealthcare\ValueObject\ImportedRecords;
@@ -45,14 +47,6 @@ final class AppointmentsRepository
 
             $service = $payer->getServices()[0];
 
-            $charge = $this->charges->findByAppointmentData(
-                payerName: $line->payerName,
-                serviceDate: $line->serviceDate,
-                clientName: $line->clientName,
-                billingCode: $line->billingCode,
-                billingUnits: $line->units
-            );
-
             $appointment = new Appointment(
                 id: $line->id,
                 payer: $payer,
@@ -62,7 +56,6 @@ final class AppointmentsRepository
                 units: $line->units,
                 charge: $line->charge,
                 dateBilled: $line->dateBilled,
-                chargeId: $charge ? $charge->getChargeLine() : null
             );
 
             $appointment->setQbCompanyId($this->qb->getActiveCompany(true)->realmId);
@@ -78,5 +71,97 @@ final class AppointmentsRepository
         }
 
         return $imported;
+    }
+
+    /**
+     * @return Appointment[]
+     */
+    public function findByChargeData(
+        string $payerName,
+        \DateTime $serviceDate,
+        string $clientName,
+        string $billingCode,
+    ): array {
+        $result = $this->appointments->find([
+            'serviceDate' => new UTCDateTime($serviceDate),
+            'clientName' => $clientName,
+            'payer.name' => $payerName,
+            'payer.services._id' => $billingCode,
+            'chargeId' => null,
+        ]);
+
+        $appointments = [];
+
+        foreach ($result as $appointment) {
+            $appointments[] = $appointment;
+        }
+
+        return $appointments;
+    }
+
+    public function findByChargeId(string $chargeId): ?Appointment
+    {
+        return $this->appointments->findOne([
+            'chargeId' => $chargeId,
+        ]);
+    }
+
+    public function findMatches(): int
+    {
+        $charges = $this->charges->findWithoutAppointments();
+
+        $matchedAppointments = 0;
+
+        foreach ($charges as $charge) {
+            $matchedAppointments += $this->matchCharge($charge);
+        }
+
+        return $matchedAppointments;
+    }
+
+    private function matchCharge(Charge $charge): int
+    {
+        $appointments = $this->findByChargeData(
+            payerName: $charge->getPrimaryPaymentInfo()->getPayer()->getName(),
+            serviceDate: $charge->getServiceDate(),
+            clientName: $charge->getClientName(),
+            billingCode: $charge->getPrimaryPaymentInfo()->getPayer()->getServices()[0]->getBillingCode()
+        );
+
+        if (empty($appointments)) {
+            return 0;
+        }
+
+        $unitsLeft = $charge->getBilledUnits();
+
+        foreach ($appointments as $appointment) {
+            $unitsLeft -= $appointment->getUnits();
+
+            if ($appointment->getUnits() === $charge->getBilledUnits()) {
+                $this->setChargeId($appointment, $charge);
+
+                return 1;
+            }
+        }
+
+        if ($unitsLeft !== 0) {
+            // Can't handle this case
+            return 0;
+        }
+
+        // Multiple appointments match so assign the charge to each of them
+        foreach ($appointments as $appointment) {
+            $this->setChargeId($appointment, $charge);
+        }
+
+        return \count($appointments);
+    }
+
+    private function setChargeId(Appointment $appointment, Charge $charge): void
+    {
+        $this->appointments->updateOne(
+            ['_id' => $appointment->getId()],
+            ['$set' => ['chargeId' => $charge->getChargeLine()]],
+        );
     }
 }

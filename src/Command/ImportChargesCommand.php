@@ -1,9 +1,12 @@
 <?php
 
+/** @noinspection PhpUnused */
+
 declare(strict_types=1);
 
 namespace PossiblePromise\QbHealthcare\Command;
 
+use PossiblePromise\QbHealthcare\Repository\AppointmentsRepository;
 use PossiblePromise\QbHealthcare\Repository\ChargesRepository;
 use PossiblePromise\QbHealthcare\Serializer\ChargeSerializer;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -20,8 +23,11 @@ use Webmozart\Assert\Assert;
 )]
 final class ImportChargesCommand extends Command
 {
-    public function __construct(private readonly ChargeSerializer $serializer, private readonly ChargesRepository $repository)
-    {
+    public function __construct(
+        private ChargeSerializer $serializer,
+        private ChargesRepository $charges,
+        private AppointmentsRepository $appointments
+    ) {
         parent::__construct();
     }
 
@@ -49,7 +55,7 @@ final class ImportChargesCommand extends Command
 
         $chargeLines = $this->serializer->unserialize($file);
 
-        $imported = $this->repository->import($chargeLines);
+        $imported = $this->charges->import($chargeLines);
 
         $io->success(
             sprintf(
@@ -59,6 +65,12 @@ final class ImportChargesCommand extends Command
                 $imported->modified
             )
         );
+
+        $matchedAppointments = $this->appointments->findMatches();
+
+        if ($matchedAppointments > 0) {
+            $io->success("Matched {$matchedAppointments} appointments to charges.");
+        }
 
         return Command::SUCCESS;
     }

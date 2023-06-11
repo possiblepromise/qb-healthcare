@@ -12,17 +12,21 @@ use MongoDB\Model\BSONIterator;
 use PossiblePromise\QbHealthcare\Database\MongoClient;
 use PossiblePromise\QbHealthcare\Entity\Charge;
 use PossiblePromise\QbHealthcare\Entity\PaymentInfo;
+use PossiblePromise\QbHealthcare\QuickBooks;
 use PossiblePromise\QbHealthcare\ValueObject\ChargeLine;
 use PossiblePromise\QbHealthcare\ValueObject\ClaimSummary;
 use PossiblePromise\QbHealthcare\ValueObject\ImportedRecords;
 
 final class ChargesRepository
 {
+    use QbApiTrait;
+
     private Collection $charges;
 
-    public function __construct(MongoClient $client, private readonly PayersRepository $payers)
+    public function __construct(MongoClient $client, QuickBooks $qb, private PayersRepository $payers)
     {
         $this->charges = $client->getDatabase()->charges;
+        $this->qb = $qb;
     }
 
     /**
@@ -63,6 +67,8 @@ final class ChargesRepository
                 primaryPaymentInfo: $paymentInfo,
                 payerBalance: $line->payerBalance
             );
+
+            $charge->setQbCompanyId($this->qb->getActiveCompany(true)->realmId);
 
             $result = $this->charges->updateOne(
                 ['_id' => $charge->getChargeLine()],
@@ -132,14 +138,7 @@ final class ChargesRepository
             ['$sort' => ['serviceDate' => 1, '_id' => 1]],
         ]);
 
-        $charges = [];
-
-        /** @var Charge $charge */
-        foreach ($result as $charge) {
-            $charges[] = $charge;
-        }
-
-        return $charges;
+        return self::hydrateCharges($result);
     }
 
     /**
@@ -178,13 +177,7 @@ final class ChargesRepository
             ['$sort' => ['serviceDate' => 1]],
         ]);
 
-        $charges = [];
-        /** @var Charge $charge */
-        foreach ($result as $charge) {
-            $charges[] = $charge;
-        }
-
-        return $charges;
+        return self::hydrateCharges($result);
     }
 
     public function createPayment(string $paymentRef): void
@@ -264,23 +257,23 @@ final class ChargesRepository
     }
 
     /**
-     * @psalm-suppress InvalidReturnStatement
-     * @psalm-suppress InvalidReturnType
+     * @return Charge[]
      */
-    public function findByAppointmentData(
-        string $payerName,
-        \DateTime $serviceDate,
-        string $clientName,
-        string $billingCode,
-        ?int $billingUnits
-    ): ?Charge {
-        return $this->charges->findOne([
-            'serviceDate' => new UTCDateTime($serviceDate),
-            'clientName' => $clientName,
-            'billedUnits' => $billingUnits,
-            'primaryPaymentInfo.payer.name' => $payerName,
-            'service._id' => $billingCode,
+    public function findWithoutAppointments(): array
+    {
+        $result = $this->charges->aggregate([
+            ['$lookup' => [
+                'from' => 'appointments',
+                'localField' => '_id',
+                'foreignField' => 'chargeId',
+                'as' => 'charges',
+            ]],
+            ['$match' => [
+                'charges' => ['$size' => 0],
+            ]],
         ]);
+
+        return self::hydrateCharges($result);
     }
 
     /**
@@ -318,5 +311,17 @@ final class ChargesRepository
             'primaryPaymentInfo.paymentRef' => $paymentRef,
             'status' => 'processed',
         ];
+    }
+
+    private static function hydrateCharges(\Traversable $result): array
+    {
+        $charges = [];
+
+        /** @var Charge $charge */
+        foreach ($result as $charge) {
+            $charges[] = $charge;
+        }
+
+        return $charges;
     }
 }
