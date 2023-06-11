@@ -76,7 +76,7 @@ final class Appointment implements Persistable
         $this->clientName = $data['clientName'];
         $this->units = $data['units'];
         /** @psalm-suppress PropertyTypeCoercion */
-        $this->charge = ((string)$data['charge']);
+        $this->charge = ((string) $data['charge']);
         $this->dateBilled = $data['dateBilled'] ? $data['dateBilled']->toDateTime() : null;
         $this->chargeId = $data['chargeId'];
     }
