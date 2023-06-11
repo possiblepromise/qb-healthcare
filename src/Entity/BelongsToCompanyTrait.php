@@ -31,6 +31,8 @@ trait BelongsToCompanyTrait
 
     private function unserializeCompanyId(array $data): void
     {
-        $this->qbCompanyId = $data['qbCompanyId'];
+        if (isset($data['qbCompanyId'])) {
+            $this->qbCompanyId = $data['qbCompanyId'];
+        }
     }
 }
