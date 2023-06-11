@@ -32,12 +32,37 @@ final class PaymentInfo implements Persistable
         return $this->payer;
     }
 
+    public function getBilledDate(): ?\DateTime
+    {
+        return $this->billedDate;
+    }
+
+    public function getPaymentDate(): ?\DateTime
+    {
+        return $this->paymentDate;
+    }
+
+    public function getPayment(): ?string
+    {
+        return $this->payment;
+    }
+
+    public function getPaymentRef(): ?string
+    {
+        return $this->paymentRef;
+    }
+
     /**
      * @return numeric-string|null
      */
     public function getCoinsurance(): ?string
     {
         return $this->coinsurance;
+    }
+
+    public function getPostedDate(): ?\DateTime
+    {
+        return $this->postedDate;
     }
 
     public function bsonSerialize(): array
