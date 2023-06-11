@@ -215,8 +215,11 @@ final class Payer implements Persistable
             'zip' => $this->zip,
             'phone' => $this->phone,
             'email' => $this->email,
-            'services' => $this->services,
         ];
+
+        if (!empty($this->services)) {
+            $data['services'] = $this->services;
+        }
 
         if ($this->qbCustomerId) {
             $data['qbCustomerId'] = $this->qbCustomerId;
@@ -241,7 +244,9 @@ final class Payer implements Persistable
         $this->phone = $data['phone'];
         $this->email = $data['email'];
 
-        if ($data['services'] instanceof BSONArray) {
+        if (!isset($data['services'])) {
+            $this->services = [];
+        } elseif ($data['services'] instanceof BSONArray) {
             $this->services = $data['services']->getArrayCopy();
         } elseif ($data['services'] instanceof Service) {
             $this->services = [$data['services']];
