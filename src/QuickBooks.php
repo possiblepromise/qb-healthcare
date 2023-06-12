@@ -55,6 +55,11 @@ final class QuickBooks
         return $this->activeCompany;
     }
 
+    public function save(): void
+    {
+        $this->companies->save($this->activeCompany);
+    }
+
     private function refresh(?ValueObject\Company $company, DataService $dataService): void
     {
         if ($company && new \DateTimeImmutable() > $company->accessToken->expires) {

@@ -22,7 +22,8 @@ final class Appointment implements Persistable
         /** @var numeric-string */
         private string $charge,
         private ?\DateTime $dateBilled,
-        private ?string $chargeId = null
+        private ?string $chargeId = null,
+        private ?string $qbJournalEntryId = null
     ) {
     }
 
@@ -34,6 +35,16 @@ final class Appointment implements Persistable
         return $this->id;
     }
 
+    public function getPayer(): Payer
+    {
+        return $this->payer;
+    }
+
+    public function getServiceDate(): \DateTime
+    {
+        return $this->serviceDate;
+    }
+
     public function setChargeId(string $chargeId): void
     {
         $this->chargeId = $chargeId;
@@ -42,6 +53,16 @@ final class Appointment implements Persistable
     public function getUnits(): int
     {
         return $this->units;
+    }
+
+    public function getCharge(): string
+    {
+        return $this->charge;
+    }
+
+    public function getQbJournalEntryId(): ?string
+    {
+        return $this->qbJournalEntryId;
     }
 
     public function bsonSerialize(): array
@@ -60,6 +81,10 @@ final class Appointment implements Persistable
             $data['chargeId'] = $this->chargeId;
         }
 
+        if ($this->qbJournalEntryId !== null) {
+            $data['qbJournalEntryId'] = $this->qbJournalEntryId;
+        }
+
         return $data;
     }
 
@@ -76,6 +101,8 @@ final class Appointment implements Persistable
         if (isset($data['chargeId'])) {
             $this->chargeId = $data['chargeId'];
         }
+
+        $this->qbJournalEntryId = $data['qbJournalEntryId'] ?? null;
 
         $this->unserializeCompanyId($data);
     }

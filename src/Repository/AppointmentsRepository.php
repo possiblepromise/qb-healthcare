@@ -12,8 +12,9 @@ use PossiblePromise\QbHealthcare\Entity\Charge;
 use PossiblePromise\QbHealthcare\QuickBooks;
 use PossiblePromise\QbHealthcare\ValueObject\AppointmentLine;
 use PossiblePromise\QbHealthcare\ValueObject\ImportedRecords;
+use QuickBooksOnline\API\Data\IPPJournalEntry;
 
-final class AppointmentsRepository
+final class AppointmentsRepository extends MongoRepository
 {
     use QbApiTrait;
 
@@ -87,13 +88,7 @@ final class AppointmentsRepository
             'chargeId' => null,
         ]);
 
-        $appointments = [];
-
-        foreach ($result as $appointment) {
-            $appointments[] = $appointment;
-        }
-
-        return $appointments;
+        return self::getArrayFromResult($result);
     }
 
     public function findByChargeId(string $chargeId): ?Appointment
@@ -114,6 +109,42 @@ final class AppointmentsRepository
         }
 
         return $matchedAppointments;
+    }
+
+    /**
+     * @return Appointment[]
+     */
+    public function findUnbilledWithoutJournalEntries(): array
+    {
+        $result = $this->appointments->aggregate([
+            self::getClaimsLookup(),
+            ['$match' => [
+                'claims' => ['$size' => 0],
+                'qbJournalEntryId' => null,
+            ]],
+            ['$sort' => self::getDefaultSort()],
+        ]);
+
+        return self::getArrayFromResult($result);
+    }
+
+    /**
+     * @return Appointment[]
+     */
+    public function findUnbilledAsOf(\DateTime $date): array
+    {
+        $result = $this->appointments->aggregate([
+            self::getClaimsLookup(),
+            ['$match' => [
+                'claims' => ['$size' => 0],
+                'serviceDate' => [
+                    '$lte' => new UTCDateTime($date),
+                ],
+            ]],
+            ['$sort' => self::getDefaultSort()],
+        ]);
+
+        return self::getArrayFromResult($result);
     }
 
     private function matchCharge(Charge $charge): int
@@ -160,5 +191,33 @@ final class AppointmentsRepository
             ['_id' => $appointment->getId()],
             ['$set' => ['chargeId' => $charge->getChargeLine()]],
         );
+    }
+
+    public function setQbJournalEntry(Appointment $appointment, IPPJournalEntry $entry): void
+    {
+        $this->appointments->updateOne(
+            ['_id' => $appointment->getId()],
+            ['$set' => ['qbJournalEntryId' => $entry->Id]],
+        );
+    }
+
+    private static function getClaimsLookup(): array
+    {
+        return [
+            '$lookup' => [
+                'from' => 'claims',
+                'localField' => 'chargeId',
+                'foreignField' => 'charges',
+                'as' => 'claims',
+            ],
+        ];
+    }
+
+    private static function getDefaultSort(): array
+    {
+        return [
+            'serviceDate' => 1,
+            '_id' => 1,
+        ];
     }
 }

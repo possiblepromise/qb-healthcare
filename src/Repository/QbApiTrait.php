@@ -6,6 +6,7 @@ namespace PossiblePromise\QbHealthcare\Repository;
 
 use PossiblePromise\QbHealthcare\QuickBooks;
 use QuickBooksOnline\API\DataService\DataService;
+use QuickBooksOnline\API\Exception\ServiceException;
 
 trait QbApiTrait
 {
@@ -17,5 +18,17 @@ trait QbApiTrait
         $dataService->throwExceptionOnError(true);
 
         return $dataService;
+    }
+
+    /**
+     * @return never
+     *
+     * @throws ServiceException
+     */
+    private function throwIntuitError(mixed $error): void
+    {
+        throw new ServiceException(
+            $error->getIntuitErrorCode() . ': ' . $error->getIntuitErrorMessage()
+        );
     }
 }

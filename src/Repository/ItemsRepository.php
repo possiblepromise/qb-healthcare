@@ -64,4 +64,9 @@ final class ItemsRepository
 
         return $this->getDataService()->add($item);
     }
+
+    public function get(string $itemId): IPPItem
+    {
+        return $this->getDataService()->FindById('Item', $itemId);
+    }
 }

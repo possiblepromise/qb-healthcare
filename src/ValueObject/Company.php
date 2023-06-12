@@ -6,15 +6,6 @@ namespace PossiblePromise\QbHealthcare\ValueObject;
 
 use MongoDB\BSON\Persistable;
 
-/**
- * @psalm-type Data=array{
- *   _id: string,
- *   companyName: string,
- *   accessToken: Token,
- *   refreshToken: Token,
- *   active?: bool
- * }
- */
 final class Company implements Persistable
 {
     public function __construct(
@@ -22,33 +13,46 @@ final class Company implements Persistable
         public string $companyName,
         public Token $accessToken,
         public Token $refreshToken,
+        public ?string $accruedRevenueAccount = null,
         public bool $active = true
     ) {
     }
 
-    /**
-     * @return Data
-     */
+    public function getAccruedRevenueAccount(): ?string
+    {
+        return $this->accruedRevenueAccount;
+    }
+
+    public function setAccruedRevenueAccount(string $accruedRevenueAccount): void
+    {
+        $this->accruedRevenueAccount = $accruedRevenueAccount;
+    }
+
     public function bsonSerialize(): array
     {
-        return [
+        $data = [
             '_id' => $this->realmId,
             'companyName' => $this->companyName,
             'accessToken' => $this->accessToken,
             'refreshToken' => $this->refreshToken,
             'active' => $this->active,
         ];
+
+        if ($this->accruedRevenueAccount) {
+            $data['accruedRevenueAccount'] = $this->accruedRevenueAccount;
+        }
+
+        return $data;
     }
 
-    /**
-     * @param Data $data
-     */
     public function bsonUnserialize(array $data): void
     {
         $this->realmId = $data['_id'];
         $this->companyName = $data['companyName'];
         $this->accessToken = $data['accessToken'];
         $this->refreshToken = $data['refreshToken'];
+
+        $this->accruedRevenueAccount = $data['accruedRevenueAccount'] ?? null;
 
         if (isset($data['active'])) {
             $this->active = $data['active'];

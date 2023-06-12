@@ -6,8 +6,6 @@ namespace PossiblePromise\QbHealthcare\Repository;
 
 use PossiblePromise\QbHealthcare\QuickBooks;
 use QuickBooksOnline\API\Data\IPPAccount;
-use QuickBooksOnline\API\Data\IPPItem;
-use QuickBooksOnline\API\Facades\Item;
 
 final class AccountsRepository
 {
@@ -28,27 +26,10 @@ final class AccountsRepository
         );
     }
 
-    public function findByCategory(IPPItem $category)
+    public function findAllOtherCurrentAssetAccounts(): array
     {
-        /** @var IPPItem[]|null $items */
-        $items = $this->getDataService()->Query(
-            "SELECT * FROM Item WHERE Type = 'Service' AND ParentRef = '{$category->Id}'"
+        return $this->getDataService()->Query(
+            "SELECT * FROM Account WHERE AccountSubType = 'OtherCurrentAssets'"
         );
-
-        if ($items === null) {
-            return [];
-        }
-
-        return $items;
-    }
-
-    public function createCategory(string $name): IPPItem
-    {
-        $category = Item::create([
-            'Type' => 'Category',
-            'Name' => $name,
-        ]);
-
-        return $this->getDataService()->add($category);
     }
 }
