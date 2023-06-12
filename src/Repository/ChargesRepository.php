@@ -17,7 +17,7 @@ use PossiblePromise\QbHealthcare\ValueObject\ChargeLine;
 use PossiblePromise\QbHealthcare\ValueObject\ClaimSummary;
 use PossiblePromise\QbHealthcare\ValueObject\ImportedRecords;
 
-final class ChargesRepository
+final class ChargesRepository extends MongoRepository
 {
     use QbApiTrait;
 
@@ -138,7 +138,7 @@ final class ChargesRepository
             ['$sort' => ['serviceDate' => 1, '_id' => 1]],
         ]);
 
-        return self::hydrateCharges($result);
+        return self::getArrayFromResult($result);
     }
 
     /**
@@ -177,7 +177,7 @@ final class ChargesRepository
             ['$sort' => ['serviceDate' => 1]],
         ]);
 
-        return self::hydrateCharges($result);
+        return self::getArrayFromResult($result);
     }
 
     public function createPayment(string $paymentRef): void
@@ -273,7 +273,7 @@ final class ChargesRepository
             ]],
         ]);
 
-        return self::hydrateCharges($result);
+        return self::getArrayFromResult($result);
     }
 
     /**
@@ -311,17 +311,5 @@ final class ChargesRepository
             'primaryPaymentInfo.paymentRef' => $paymentRef,
             'status' => 'processed',
         ];
-    }
-
-    private static function hydrateCharges(\Traversable $result): array
-    {
-        $charges = [];
-
-        /** @var Charge $charge */
-        foreach ($result as $charge) {
-            $charges[] = $charge;
-        }
-
-        return $charges;
     }
 }
