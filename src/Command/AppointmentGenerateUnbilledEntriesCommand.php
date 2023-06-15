@@ -46,7 +46,7 @@ final class AppointmentGenerateUnbilledEntriesCommand extends Command
 
         $io->title('Generate Entries for Unbilled Appointments');
 
-        if ($this->qb->getActiveCompany(true)->getAccruedRevenueAccount() === null) {
+        if ($this->qb->getActiveCompany(true)->accruedRevenueAccount === null) {
             $this->configureAccruedRevenueAccount($io);
         }
 
@@ -105,7 +105,7 @@ final class AppointmentGenerateUnbilledEntriesCommand extends Command
         $account = $accounts->selectOne(
             static fn (IPPAccount $account) => $account->FullyQualifiedName === $accountName
         );
-        $this->qb->getActiveCompany()->setAccruedRevenueAccount($account->Id);
+        $this->qb->getActiveCompany()->accruedRevenueAccount = $account->Id;
         $this->qb->save();
     }
 }
