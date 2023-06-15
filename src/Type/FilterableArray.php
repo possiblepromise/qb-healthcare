@@ -4,14 +4,45 @@ declare(strict_types=1);
 
 namespace PossiblePromise\QbHealthcare\Type;
 
-final class FilterableArray
+final class FilterableArray implements \Iterator, \Countable
 {
     private array $items;
+    private int $position = 0;
 
     public function __construct(array $items)
     {
         $this->items = $items;
     }
+
+    public function valid(): bool
+    {
+        return isset($this->items[$this->position]);
+    }
+
+    public function current(): mixed
+    {
+        return $this->items[$this->position];
+    }
+
+    public function key(): int
+    {
+        return $this->position;
+    }
+
+    public function next(): void
+    {
+        ++$this->position;
+    }
+
+public function rewind(): void
+{
+    $this->position = 0;
+}
+
+public function count(): int
+{
+    return \count($this->items);
+}
 
     public function filter(callable $callback): self
     {
@@ -70,5 +101,10 @@ final class FilterableArray
         }
 
         return $item;
+    }
+
+    public function toArray(): array
+    {
+        return $this->items;
     }
 }
