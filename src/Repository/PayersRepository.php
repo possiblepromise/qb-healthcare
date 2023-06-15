@@ -46,7 +46,39 @@ final class PayersRepository
 
         $result->next();
 
-        /** @var Payer|null */
         return $result->current();
+    }
+
+    public function findOneByName($payer): ?Payer
+    {
+        $result = $this->payers->aggregate([
+            ['$match' => ['name' => $payer]],
+            ['$project' => ['services' => false]],
+        ]);
+
+        $result->next();
+
+        return $result->current();
+    }
+
+    /**
+     * @return string[]
+     */
+    public function findAllServiceItemIds()
+    {
+        $result = $this->payers->aggregate([
+            ['$unwind' => '$services'],
+            ['$group' => [
+                '_id' => '$services.qbItemId',
+            ]],
+        ]);
+
+        $itemIds = [];
+
+        foreach ($result as $item) {
+            $itemIds[] = $item['_id'];
+        }
+
+        return $itemIds;
     }
 }

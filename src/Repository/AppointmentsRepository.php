@@ -10,6 +10,7 @@ use PossiblePromise\QbHealthcare\Database\MongoClient;
 use PossiblePromise\QbHealthcare\Entity\Appointment;
 use PossiblePromise\QbHealthcare\Entity\Charge;
 use PossiblePromise\QbHealthcare\QuickBooks;
+use PossiblePromise\QbHealthcare\Type\FilterableArray;
 use PossiblePromise\QbHealthcare\ValueObject\AppointmentLine;
 use PossiblePromise\QbHealthcare\ValueObject\ImportedRecords;
 use QuickBooksOnline\API\Data\IPPJournalEntry;
@@ -147,6 +148,54 @@ final class AppointmentsRepository extends MongoRepository
         return self::getArrayFromResult($result);
     }
 
+    /**
+     * @param Charge[] $charges
+     *
+     * @return Appointment[]
+     */
+    public function findUnbilledFromCharges(array $charges): array
+    {
+        $chargeIds = (new FilterableArray($charges))->map(
+            static fn (Charge $charge): string => $charge->getChargeLine()
+        );
+
+        $result = $this->appointments->aggregate([
+            self::getClaimsLookup(),
+            ['$match' => [
+                'claims' => ['$size' => 0],
+                'chargeId' => [
+                    '$in' => $chargeIds,
+                ],
+            ]],
+            ['$sort' => self::getDefaultSort()],
+        ]);
+
+        return self::getArrayFromResult($result);
+    }
+
+    public function getNextClaimDate(): ?\DateTime
+    {
+        $result = $this->appointments->aggregate([
+            self::getClaimsLookup(),
+            ['$match' => [
+                'claims' => ['$size' => 0],
+                'dateBilled' => ['$ne' => null],
+            ]],
+            ['$sort' => ['dateBilled' => 1]],
+            ['$project' => ['dateBilled' => true]],
+        ]);
+
+        $result->next();
+
+        if (!$result->valid()) {
+            return null;
+        }
+
+        $record = $result->current();
+
+        return $record['dateBilled']->toDateTime();
+    }
+
     private function matchCharge(Charge $charge): int
     {
         $appointments = $this->findByChargeData(
@@ -198,6 +247,14 @@ final class AppointmentsRepository extends MongoRepository
         $this->appointments->updateOne(
             ['_id' => $appointment->getId()],
             ['$set' => ['qbJournalEntryId' => $entry->Id]],
+        );
+    }
+
+    public function setQbReversingJournalEntry(Appointment $appointment, IPPJournalEntry $entry): void
+    {
+        $this->appointments->updateOne(
+            ['_id' => $appointment->getId()],
+            ['$set' => ['qbReversingJournalEntryId' => $entry->Id]],
         );
     }
 

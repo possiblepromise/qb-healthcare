@@ -7,10 +7,11 @@ namespace PossiblePromise\QbHealthcare\Entity;
 use MongoDB\BSON\Decimal128;
 use MongoDB\BSON\Persistable;
 use MongoDB\BSON\UTCDateTime;
-use Webmozart\Assert\Assert;
 
 final class Charge implements Persistable
 {
+    use BelongsToCompanyTrait;
+
     public function __construct(
         /** @var numeric-string */
         private string $chargeLine,
@@ -23,12 +24,7 @@ final class Charge implements Persistable
         private ?string $contractAmount,
         private int $billedUnits,
         private PaymentInfo $primaryPaymentInfo,
-        private string $payerBalance,
-        private ClaimStatus $status = ClaimStatus::pending,
-        private ?string $fileId = null,
-        private ?string $claimId = null,
-        private ?string $qbInvoiceNumber = null,
-        private ?string $qbCreditMemoNumber = null,
+        private string $payerBalance
     ) {
     }
 
@@ -43,6 +39,11 @@ final class Charge implements Persistable
     public function getServiceDate(): \DateTime
     {
         return $this->serviceDate;
+    }
+
+    public function getClientName(): string
+    {
+        return $this->clientName;
     }
 
     public function getService(): Service
@@ -76,19 +77,9 @@ final class Charge implements Persistable
         return $this->primaryPaymentInfo;
     }
 
-    public function getQbInvoiceNumber(): ?string
-    {
-        return $this->qbInvoiceNumber;
-    }
-
-    public function getQbCreditMemoNumber(): ?string
-    {
-        return $this->qbCreditMemoNumber;
-    }
-
     public function bsonSerialize(): array
     {
-        return [
+        return $this->serializeCompanyId([
             '_id' => $this->chargeLine,
             'serviceDate' => new UTCDateTime($this->serviceDate),
             'clientName' => $this->clientName,
@@ -98,53 +89,25 @@ final class Charge implements Persistable
             'billedUnits' => $this->billedUnits,
             'primaryPaymentInfo' => $this->primaryPaymentInfo,
             'payerBalance' => $this->payerBalance ? new Decimal128($this->payerBalance) : new Decimal128('0.00'),
-        ];
+        ]);
     }
 
     public function bsonUnserialize(array $data): void
     {
-        Assert::string($data['_id']);
-        if (!is_numeric($data['_id'])) {
-            throw new \InvalidArgumentException('Charge line must be numeric.');
-        }
-
-        Assert::isInstanceOf($data['serviceDate'], UTCDateTime::class);
-        Assert::string($data['clientName']);
-        Assert::isInstanceOf($data['service'], Service::class);
-        Assert::isInstanceOf($data['billedAmount'], Decimal128::class);
-        Assert::nullOrIsInstanceOf($data['contractAmount'], Decimal128::class);
-        Assert::integer($data['billedUnits']);
-        Assert::isInstanceOf($data['primaryPaymentInfo'], PaymentInfo::class);
-        Assert::nullOrIsInstanceOf($data['payerBalance'], Decimal128::class);
-        Assert::string($data['status']);
-        Assert::nullOrString($data['fileId']);
-        Assert::nullOrString($data['claimId']);
-        Assert::nullOrString($data['qbInvoiceNumber']);
-        Assert::nullOrString($data['qbCreditMemoNumber']);
-
         $this->chargeLine = $data['_id'];
         $this->serviceDate = $data['serviceDate']->toDateTime();
         $this->clientName = $data['clientName'];
         $this->service = $data['service'];
-
-        $billedAmount = (string) $data['billedAmount'];
-        Assert::numeric($billedAmount);
-        $this->billedAmount = $billedAmount;
+        $this->billedAmount = ((string) $data['billedAmount']);
 
         if ($data['contractAmount'] !== null) {
-            $contractAmount = (string) $data['contractAmount'];
-            Assert::numeric($contractAmount);
-            $this->contractAmount = $contractAmount;
+            $this->contractAmount = ((string) $data['contractAmount']);
         }
 
         $this->billedUnits = $data['billedUnits'];
         $this->primaryPaymentInfo = $data['primaryPaymentInfo'];
         $this->payerBalance = (string) $data['payerBalance'];
 
-        $this->status = ClaimStatus::from($data['status']);
-        $this->fileId = $data['fileId'];
-        $this->claimId = $data['claimId'];
-        $this->qbInvoiceNumber = $data['qbInvoiceNumber'];
-        $this->qbCreditMemoNumber = $data['qbCreditMemoNumber'];
+        $this->unserializeCompanyId($data);
     }
 }

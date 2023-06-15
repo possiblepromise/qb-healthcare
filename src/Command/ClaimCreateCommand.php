@@ -4,11 +4,25 @@ declare(strict_types=1);
 
 namespace PossiblePromise\QbHealthcare\Command;
 
+use PossiblePromise\QbHealthcare\Entity\Appointment;
 use PossiblePromise\QbHealthcare\Entity\Charge;
+use PossiblePromise\QbHealthcare\Exception\ClaimCreationException;
 use PossiblePromise\QbHealthcare\HcfaReader;
+use PossiblePromise\QbHealthcare\QuickBooks;
+use PossiblePromise\QbHealthcare\Repository\AppointmentsRepository;
 use PossiblePromise\QbHealthcare\Repository\ChargesRepository;
+use PossiblePromise\QbHealthcare\Repository\ClaimsRepository;
+use PossiblePromise\QbHealthcare\Repository\CreditMemosRepository;
+use PossiblePromise\QbHealthcare\Repository\InvoicesRepository;
+use PossiblePromise\QbHealthcare\Repository\ItemsRepository;
+use PossiblePromise\QbHealthcare\Repository\JournalEntriesRepository;
 use PossiblePromise\QbHealthcare\Repository\PayersRepository;
+use PossiblePromise\QbHealthcare\Repository\TermsRepository;
+use PossiblePromise\QbHealthcare\Type\FilterableArray;
 use PossiblePromise\QbHealthcare\ValueObject\HcfaInfo;
+use QuickBooksOnline\API\Data\IPPItem;
+use QuickBooksOnline\API\Data\IPPTerm;
+use QuickBooksOnline\API\Exception\ServiceException;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
@@ -22,8 +36,19 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 )]
 final class ClaimCreateCommand extends Command
 {
-    public function __construct(private readonly ChargesRepository $charges, private readonly PayersRepository $payers, private readonly HcfaReader $reader)
-    {
+    public function __construct(
+        private ChargesRepository $charges,
+        private ItemsRepository $items,
+        private AppointmentsRepository $appointments,
+        private JournalEntriesRepository $journalEntries,
+        private ClaimsRepository $claims,
+        private InvoicesRepository $invoices,
+        private CreditMemosRepository $creditMemos,
+        private TermsRepository $terms,
+        private PayersRepository $payers,
+        private QuickBooks $qb,
+        private HcfaReader $reader
+    ) {
         parent::__construct();
     }
 
@@ -31,7 +56,7 @@ final class ClaimCreateCommand extends Command
     {
         $this
             ->setHelp('Allows you to create a claim.')
-            ->addArgument('hcfa', InputArgument::REQUIRED, 'HCFA file to read.')
+            ->addArgument('hcfa', InputArgument::OPTIONAL, 'HCFA file to read.')
         ;
     }
 
@@ -41,8 +66,30 @@ final class ClaimCreateCommand extends Command
 
         $io->title('Create Claim');
 
-        $file = (string) $input->getArgument('hcfa');
+        $nextClaim = $this->appointments->getNextClaimDate();
+
+        $file = $input->getArgument('hcfa');
+        if ($file === null) {
+            if ($nextClaim === null) {
+                $io->success('There are no more claims to process.');
+            } else {
+                $io->success('The next claim is from ' . $nextClaim->format('Y-m-d'));
+            }
+
+            return Command::SUCCESS;
+        }
+
         $hcfa = $this->reader->read($file);
+
+        if ($hcfa->billedDate->format('Y-m-d') !== $nextClaim->format('Y-m-d')) {
+            $io->error(sprintf(
+                'Expecting a claim billed on %s, but this claim was billed on %s.',
+                $nextClaim->format('Y-m-d'),
+                $hcfa->billedDate->format('Y-m-d')
+            ));
+
+            return Command::INVALID;
+        }
 
         $client = $this->charges->findClient($hcfa->lastName, $hcfa->firstName);
         if ($client === null) {
@@ -107,7 +154,7 @@ final class ClaimCreateCommand extends Command
         foreach ($charges as $charge) {
             $table[] = [
                 $charge->getServiceDate()->format('Y-m-d'),
-                $charge->getService()->getName(),
+                $this->items->get($charge->getPrimaryPaymentInfo()->getPayer()->getServices()[0]->getQbItemId())->Name,
                 $charge->getBilledUnits(),
                 $fmt->formatCurrency((float) $charge->getService()->getRate(), 'USD'),
                 $fmt->formatCurrency((float) $charge->getBilledAmount(), 'USD'),
@@ -119,35 +166,46 @@ final class ClaimCreateCommand extends Command
             $table
         );
 
-        $io->text('Please enter the above charges into QuickBooks.');
-
-        $qbInvoiceNumber = (string) $io->ask('QB invoice number');
-
-        $io->text('Now please create a credit memo with the following:');
-        $io->newLine();
-
-        $credits = [];
-        $credits[] = ['Contractual Adjustment' => $fmt->formatCurrency((float) $summary->getContractualAdjustment(), 'USD')];
-
-        if (bccomp($summary->getCoinsurance(), '0.00', 2) === 1) {
-            $credits[] = ['Coinsurance' => $fmt->formatCurrency((float) $summary->getCoinsurance(), 'USD')];
-            $credits[] = ['Total' => $fmt->formatCurrency((float) $summary->getTotalDiscount(), 'USD')];
+        $io->text('If this looks good, this claim will be imported into QuickBooks.');
+        if (!$io->confirm('Continue?')) {
+            return Command::SUCCESS;
         }
 
-        $io->definitionList(...$credits);
+        $unbilledAppointments = $this->appointments->findUnbilledFromCharges($charges);
 
-        $qbCreditNumber = (string) $io->ask('QB credit memo number');
+        try {
+            self::validateAppointments($charges, $unbilledAppointments);
+        } catch (ClaimCreationException $e) {
+            $io->error($e->getMessage());
 
-        $this->charges->processClaim(
-            $hcfa->fileId,
+            return Command::FAILURE;
+        }
+
+        $this->createReversingJournalEntries($unbilledAppointments, $io);
+
+        $this->validateDefaultPaymentTermSet($io);
+
+        $invoice = $this->invoices->createFromCharges($hcfa->claimId, $charges);
+
+        // Ensure we have the Contractual Adjustment item
+        $this->validateContractualAdjustmentItemSet($io);
+
+        try {
+            $creditMemo = $this->creditMemos->createContractualAdjustmentCreditFromCharges($hcfa->claimId, $charges);
+        } catch (ServiceException $e) {
+            $this->invoices->delete($invoice);
+            $io->error($e->getMessage());
+
+            return Command::FAILURE;
+        }
+
+        $this->claims->createClaim(
             $hcfa->claimId,
-            $client,
-            $hcfa->payerId,
-            $hcfa->fromDate,
-            $hcfa->toDate,
-            $qbInvoiceNumber,
-            $qbCreditNumber,
-            $selectedCharges
+            $hcfa->fileId,
+            $summary,
+            $invoice,
+            $creditMemo,
+            $charges
         );
 
         $io->success(sprintf('Claim %s has been processed successfully.', $hcfa->claimId));
@@ -236,5 +294,95 @@ final class ClaimCreateCommand extends Command
         }
 
         return $date->modify('00:00:00');
+    }
+
+    private static function validateAppointments(array $charges, array $unbilledAppointments): void
+    {
+        $remainingCharges = (new FilterableArray($charges))->map(
+            static fn (Charge $charge) => $charge->getChargeLine()
+        );
+
+        // Perform some validation
+        foreach ($unbilledAppointments as $appointment) {
+            // All charges should be accounted for
+            $key = array_search($appointment->getChargeId(), $remainingCharges, true);
+            if ($key !== false) {
+                unset($remainingCharges[$key]);
+            }
+        }
+
+        if (!empty($remainingCharges)) {
+            throw new ClaimCreationException(
+                'The remaining charges do not have connected appointments: %s',
+                implode(', ', $remainingCharges)
+            );
+        }
+    }
+
+    private function createReversingJournalEntries(array $unbilledAppointments, SymfonyStyle $io): void
+    {
+        $unbilledAppointments = (new FilterableArray($unbilledAppointments))->filter(
+            static fn (Appointment $appointment) => $appointment->getQbJournalEntryId() !== null && $appointment->getQbReversingJournalEntryId() === null
+        );
+
+        if (\count($unbilledAppointments) === 0) {
+            $io->text('No unbilled appointments to reverse.');
+            $io->newLine();
+
+            return;
+        }
+
+        $io->text(sprintf(
+            'Creating reversing journal entries for %s unbilled appointments...',
+            \count($unbilledAppointments)
+        ));
+
+        foreach ($unbilledAppointments as $appointment) {
+            $entry = $this->journalEntries->createReversingAccruedRevenueEntryFromAppointment($appointment);
+            $this->appointments->setQbReversingJournalEntry($appointment, $entry);
+
+            $io->text(
+                sprintf(
+                    'Created journal entry %s for appointment %s on %s',
+                    $entry->DocNumber,
+                    $appointment->getId(),
+                    $appointment->getServiceDate()->format('Y-m-d')
+                )
+            );
+        }
+        $io->text('Done');
+        $io->newLine();
+    }
+
+    private function validateDefaultPaymentTermSet(SymfonyStyle $io): void
+    {
+        if ($this->qb->getActiveCompany()->paymentTerm === null) {
+            $io->text('Please select the default payment term to use.');
+            $terms = new FilterableArray($this->terms->findAll());
+            $name = $io->choice(
+                'Default payment term',
+                $terms->map(static fn (IPPTerm $term) => $term->Name)
+            );
+            $term = $terms->selectOne(static fn (IPPTerm $term) => $term->Name === $name);
+            $this->qb->getActiveCompany()->paymentTerm = $term->Id;
+            $this->qb->save();
+        }
+    }
+
+    private function validateContractualAdjustmentItemSet(SymfonyStyle $io): void
+    {
+        if ($this->qb->getActiveCompany()->contractualAdjustmentItem === null) {
+            $items = $this->items->findAllNotIn($this->payers->findAllServiceItemIds());
+            $io->text('Please select the item for contractual adjustments.');
+            $name = $io->choice(
+                'Contractual adjustment item',
+                $items->map(static fn (IPPItem $item) => $item->FullyQualifiedName)
+            );
+            $contractualAdjustmentItem = $items->selectOne(
+                static fn (IPPItem $item) => $item->FullyQualifiedName === $name
+            );
+            $this->qb->getActiveCompany()->contractualAdjustmentItem = $contractualAdjustmentItem->Id;
+            $this->qb->save();
+        }
     }
 }

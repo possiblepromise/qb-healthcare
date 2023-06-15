@@ -8,12 +8,16 @@ final class ClaimSummary
 {
     public function __construct(
         private readonly string $payer,
-        /** @var numeric-string */
         private readonly string $billedAmount,
-        /** @var numeric-string */
         private readonly string $contractAmount,
-        /** @var numeric-string */
+        private readonly \DateTime $billedDate,
+        private readonly ?\DateTime $paymentDate,
+        private readonly ?string $payment,
+        private readonly ?string $paymentRef,
+        private readonly string $copay,
         private readonly string $coinsurance,
+        private readonly string $deductible,
+        private readonly ?\DateTime $postedDate
     ) {
     }
 
@@ -22,51 +26,68 @@ final class ClaimSummary
         return $this->payer;
     }
 
-    /**
-     * @return numeric-string
-     */
     public function getBilledAmount(): string
     {
         return $this->billedAmount;
     }
 
-    /**
-     * @return numeric-string
-     */
     public function getContractAmount(): string
     {
         return $this->contractAmount;
     }
 
-    /**
-     * @return numeric-string
-     */
     public function getContractualAdjustment(): string
     {
         return bcsub($this->billedAmount, $this->contractAmount, 2);
     }
 
-    /**
-     * @return numeric-string
-     */
+    public function getBilledDate(): \DateTime
+    {
+        return $this->billedDate;
+    }
+
+    public function getPaymentDate(): ?\DateTime
+    {
+        return $this->paymentDate;
+    }
+
+    public function getPayment(): ?string
+    {
+        return $this->payment;
+    }
+
+    public function getPaymentRef(): ?string
+    {
+        return $this->paymentRef;
+    }
+
+    public function getCopay(): string
+    {
+        return $this->copay;
+    }
+
     public function getCoinsurance(): string
     {
         return $this->coinsurance;
     }
 
-    /**
-     * @return numeric-string
-     */
+    public function getDeductible(): string
+    {
+        return $this->deductible;
+    }
+
     public function getTotalDiscount(): string
     {
         return bcadd($this->getContractualAdjustment(), $this->coinsurance, 2);
     }
 
-    /**
-     * @return numeric-string
-     */
     public function getTotal(): string
     {
         return bcsub($this->contractAmount, $this->coinsurance, 2);
+    }
+
+    public function getPostedDate(): ?\DateTime
+    {
+        return $this->postedDate;
     }
 }

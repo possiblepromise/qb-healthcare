@@ -7,7 +7,6 @@ namespace PossiblePromise\QbHealthcare\Entity;
 use MongoDB\BSON\Decimal128;
 use MongoDB\BSON\Persistable;
 use MongoDB\BSON\UTCDateTime;
-use Webmozart\Assert\Assert;
 
 final class PaymentInfo implements Persistable
 {
@@ -23,7 +22,7 @@ final class PaymentInfo implements Persistable
         private ?string $coinsurance = null,
         /** @var numeric-string|null */
         private ?string $deductible = null,
-        private ?\DateTime $postedDate = null
+        private \DateTime|null $postedDate = null
     ) {
     }
 
@@ -82,46 +81,14 @@ final class PaymentInfo implements Persistable
 
     public function bsonUnserialize(array $data): void
     {
-        Assert::isInstanceOf($data['payer'], Payer::class);
-        Assert::nullOrIsInstanceOf($data['billedDate'], UTCDateTime::class);
-        Assert::nullOrIsInstanceOf($data['paymentDate'], UTCDateTime::class);
-        Assert::nullOrIsInstanceOf($data['payment'], Decimal128::class);
-        Assert::nullOrString($data['paymentRef']);
-        Assert::nullOrIsInstanceOf($data['copay'], Decimal128::class);
-        Assert::nullOrIsInstanceOf($data['coinsurance'], Decimal128::class);
-        Assert::nullOrIsInstanceOf($data['deductible'], Decimal128::class);
-        Assert::nullOrIsInstanceOf($data['postedDate'], UTCDateTime::class);
-
         $this->payer = $data['payer'];
-
-        if ($data['billedDate'] !== null) {
-            $this->billedDate = $data['billedDate']->toDateTime();
-        }
-
-        if ($data['paymentDate'] !== null) {
-            $this->paymentDate = $data['paymentDate']->toDateTime();
-        }
-
-        if ($data['payment'] !== null) {
-            $this->payment = (string) $data['payment'];
-        }
-
-        $this->paymentRef = $data['paymentRef'];
-
-        $copay = (string) $data['copay'];
-        Assert::numeric($copay);
-        $this->copay = $copay;
-
-        $coinsurance = (string) $data['coinsurance'];
-        Assert::numeric($coinsurance);
-        $this->coinsurance = $coinsurance;
-
-        $deductible = (string) $data['deductible'];
-        Assert::numeric($deductible);
-        $this->deductible = $deductible;
-
-        if ($data['postedDate'] !== null) {
-            $this->postedDate = $data['postedDate']->toDateTime();
-        }
+        $this->billedDate = $data['billedDate'] ? $data['billedDate']->toDateTime() : null;
+        $this->paymentDate = $data['paymentDate'] ? $data['paymentDate']->toDateTime() : null;
+        $this->payment = $data['payment'] ? (string) $data['payment'] : null;
+        $this->paymentRef = $data['paymentRef'] ?? null;
+        $this->copay = ((string) $data['copay']);
+        $this->coinsurance = ((string) $data['coinsurance']);
+        $this->deductible = ((string) $data['deductible']);
+        $this->postedDate = $data['postedDate'] ? $data['postedDate']->toDateTime() : null;
     }
 }

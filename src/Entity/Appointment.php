@@ -23,7 +23,8 @@ final class Appointment implements Persistable
         private string $charge,
         private ?\DateTime $dateBilled,
         private ?string $chargeId = null,
-        private ?string $qbJournalEntryId = null
+        private ?string $qbJournalEntryId = null,
+        private ?string $qbReversingJournalEntryId = null
     ) {
     }
 
@@ -45,11 +46,6 @@ final class Appointment implements Persistable
         return $this->serviceDate;
     }
 
-    public function setChargeId(string $chargeId): void
-    {
-        $this->chargeId = $chargeId;
-    }
-
     public function getUnits(): int
     {
         return $this->units;
@@ -60,9 +56,29 @@ final class Appointment implements Persistable
         return $this->charge;
     }
 
+    public function getDateBilled(): ?\DateTime
+    {
+        return $this->dateBilled;
+    }
+
+    public function getChargeId(): ?string
+    {
+        return $this->chargeId;
+    }
+
+    public function setChargeId(string $chargeId): void
+    {
+        $this->chargeId = $chargeId;
+    }
+
     public function getQbJournalEntryId(): ?string
     {
         return $this->qbJournalEntryId;
+    }
+
+    public function getQbReversingJournalEntryId(): ?string
+    {
+        return $this->qbReversingJournalEntryId;
     }
 
     public function bsonSerialize(): array
@@ -85,6 +101,10 @@ final class Appointment implements Persistable
             $data['qbJournalEntryId'] = $this->qbJournalEntryId;
         }
 
+        if ($this->qbReversingJournalEntryId !== null) {
+            $data['qbReversingJournalEntryId'] = $this->qbReversingJournalEntryId;
+        }
+
         return $data;
     }
 
@@ -97,12 +117,9 @@ final class Appointment implements Persistable
         $this->units = $data['units'];
         $this->charge = ((string) $data['charge']);
         $this->dateBilled = $data['dateBilled'] ? $data['dateBilled']->toDateTime() : null;
-
-        if (isset($data['chargeId'])) {
-            $this->chargeId = $data['chargeId'];
-        }
-
+        $this->chargeId = $data['chargeId'] ?? null;
         $this->qbJournalEntryId = $data['qbJournalEntryId'] ?? null;
+        $this->qbReversingJournalEntryId = $data['qbReversingJournalEntryId'] ?? null;
 
         $this->unserializeCompanyId($data);
     }

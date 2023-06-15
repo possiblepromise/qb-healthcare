@@ -83,9 +83,6 @@ final class ChargesRepository extends MongoRepository
         return $imported;
     }
 
-    /**
-     * @param numeric-string[] $charges
-     */
     public function getSummary(
         string $client,
         string $payer,
@@ -95,13 +92,23 @@ final class ChargesRepository extends MongoRepository
     ): ?ClaimSummary {
         /** @var BSONIterator $result */
         $result = $this->charges->aggregate([
+            self::getClaimsLookup(),
             ['$match' => self::getClaimQuery($client, $payer, $startDate, $endDate, $charges)],
-            ['$group' => [
-                '_id' => '$primaryPaymentInfo.payer.name',
-                'billedAmount' => ['$sum' => '$billedAmount'],
-                'contractAmount' => ['$sum' => '$contractAmount'],
-                'coinsurance' => ['$sum' => '$primaryPaymentInfo.coinsurance'],
-            ]],
+            [
+                '$group' => [
+                    '_id' => '$primaryPaymentInfo.payer.name',
+                    'billedAmount' => ['$sum' => '$billedAmount'],
+                    'contractAmount' => ['$sum' => '$contractAmount'],
+                    'billedDate' => ['$first' => '$primaryPaymentInfo.billedDate'],
+                    'paymentDate' => ['$first' => '$primaryPaymentInfo.paymentDate'],
+                    'payment' => ['$sum' => '$primaryPaymentInfo.payment'],
+                    'paymentRef' => ['$first' => '$primaryPaymentInfo.paymentRef'],
+                    'copay' => ['$sum' => '$primaryPaymentInfo.copay'],
+                    'coinsurance' => ['$sum' => '$primaryPaymentInfo.coinsurance'],
+                    'deductible' => ['$sum' => '$primaryPaymentInfo.deductible'],
+                    'postedDate' => ['$first' => '$primaryPaymentInfo.postedDate'],
+                ],
+            ],
         ]);
 
         $result->next();
@@ -110,19 +117,21 @@ final class ChargesRepository extends MongoRepository
             return null;
         }
 
-        /** @var array{_id: string, billedAmount: Decimal128, contractAmount: Decimal128, coinsurance: Decimal128} $summary */
-        $summary = $result->current();
+        $data = $result->current();
 
-        /** @var numeric-string $billedAmount */
-        $billedAmount = (string) $summary['billedAmount'];
-
-        /** @var numeric-string $contractAmount */
-        $contractAmount = (string) $summary['contractAmount'];
-
-        /** @var numeric-string $coinsurance */
-        $coinsurance = (string) $summary['coinsurance'];
-
-        return new ClaimSummary($summary['_id'], $billedAmount, $contractAmount, $coinsurance);
+        return new ClaimSummary(
+            payer: $data['_id'],
+            billedAmount: (string) $data['billedAmount'],
+            contractAmount: (string) $data['contractAmount'],
+            billedDate: $data['billedDate']->toDateTime(),
+            paymentDate: $data['paymentDate'] ? $data['paymentDate']->toDateTime() : null,
+            payment: $data['payment'] ? (string) $data['payment'] : null,
+            paymentRef: $data['paymentRef'],
+            copay: (string) $data['copay'],
+            coinsurance: (string) $data['coinsurance'],
+            deductible: (string) $data['deductible'],
+            postedDate: $data['postedDate'] ? $data['postedDate']->toDateTime() : null
+        );
     }
 
     /**
@@ -134,37 +143,12 @@ final class ChargesRepository extends MongoRepository
     {
         /** @var BSONIterator $result */
         $result = $this->charges->aggregate([
+            self::getClaimsLookup(),
             ['$match' => self::getClaimQuery($client, $payer, $startDate, $endDate, $charges)],
             ['$sort' => ['serviceDate' => 1, '_id' => 1]],
         ]);
 
         return self::getArrayFromResult($result);
-    }
-
-    /**
-     * @param numeric-string[] $charges
-     */
-    public function processClaim(
-        string $fileId,
-        string $claimId,
-        string $client,
-        string $payer,
-        \DateTimeImmutable $startDate,
-        \DateTimeImmutable $endDate,
-        string $qbInvoiceNumber,
-        string $qbCreditNumber,
-        array $charges = []
-    ): void {
-        $this->charges->updateMany(
-            self::getClaimQuery($client, $payer, $startDate, $endDate, $charges),
-            ['$set' => [
-                'fileId' => $fileId,
-                'claimId' => $claimId,
-                'status' => 'processed',
-                'qbInvoiceNumber' => $qbInvoiceNumber,
-                'qbCreditMemoNumber' => $qbCreditNumber,
-            ]]
-        );
     }
 
     /**
@@ -276,6 +260,18 @@ final class ChargesRepository extends MongoRepository
         return self::getArrayFromResult($result);
     }
 
+    private static function getClaimsLookup(): array
+    {
+        return [
+            '$lookup' => [
+                'from' => 'claims',
+                'localField' => '_id',
+                'foreignField' => 'charges',
+                'as' => 'claims',
+            ],
+        ];
+    }
+
     /**
      * @param numeric-string[] $charges
      */
@@ -298,7 +294,7 @@ final class ChargesRepository extends MongoRepository
                     '$gte' => new UTCDateTime($startDate),
                     '$lte' => new UTCDateTime($endDate),
                 ],
-                'status' => 'pending',
+                'claims' => ['$size' => 0],
             ];
         }
 
