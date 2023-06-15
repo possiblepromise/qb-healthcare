@@ -14,18 +14,11 @@ final class Company implements Persistable
         public Token $accessToken,
         public Token $refreshToken,
         public ?string $accruedRevenueAccount = null,
+        public ?string $paymentTerm = null,
+        public ?string $contractualAdjustmentItem = null,
+        public ?string $coinsuranceItem = null,
         public bool $active = true
     ) {
-    }
-
-    public function getAccruedRevenueAccount(): ?string
-    {
-        return $this->accruedRevenueAccount;
-    }
-
-    public function setAccruedRevenueAccount(string $accruedRevenueAccount): void
-    {
-        $this->accruedRevenueAccount = $accruedRevenueAccount;
     }
 
     public function bsonSerialize(): array
@@ -42,6 +35,18 @@ final class Company implements Persistable
             $data['accruedRevenueAccount'] = $this->accruedRevenueAccount;
         }
 
+        if ($this->paymentTerm) {
+            $data['paymentTerm'] = $this->paymentTerm;
+        }
+
+        if ($this->contractualAdjustmentItem) {
+            $data['contractualAdjustmentItem'] = $this->contractualAdjustmentItem;
+        }
+
+        if ($this->coinsuranceItem) {
+            $data['coinsuranceItem'] = $this->coinsuranceItem;
+        }
+
         return $data;
     }
 
@@ -51,11 +56,10 @@ final class Company implements Persistable
         $this->companyName = $data['companyName'];
         $this->accessToken = $data['accessToken'];
         $this->refreshToken = $data['refreshToken'];
-
         $this->accruedRevenueAccount = $data['accruedRevenueAccount'] ?? null;
-
-        if (isset($data['active'])) {
-            $this->active = $data['active'];
-        }
+        $this->paymentTerm = $data['paymentTerm'] ?? null;
+        $this->contractualAdjustmentItem = $data['contractualAdjustmentItem'] ?? null;
+        $this->coinsuranceItem = $data['coinsuranceItem'] ?? null;
+        $this->active = $data['active'] ?? true;
     }
 }
