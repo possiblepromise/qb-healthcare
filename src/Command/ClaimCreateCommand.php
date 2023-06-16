@@ -78,6 +78,11 @@ final class ClaimCreateCommand extends Command
 
             return Command::SUCCESS;
         }
+        if ($nextClaim === null) {
+            $io->success('There are no more claims to process.');
+
+            return Command::SUCCESS;
+        }
 
         $hcfa = $this->reader->read($file);
 
