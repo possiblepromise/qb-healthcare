@@ -67,19 +67,15 @@ final class ClaimCreateCommand extends Command
         $io->title('Create Claim');
 
         $nextClaim = $this->appointments->getNextClaimDate();
-
-        $file = $input->getArgument('hcfa');
-        if ($file === null) {
-            if ($nextClaim === null) {
-                $io->success('There are no more claims to process.');
-            } else {
-                $io->success('The next claim is from ' . $nextClaim->format('Y-m-d'));
-            }
+        if ($nextClaim === null) {
+            $io->success('There are no more claims to process.');
 
             return Command::SUCCESS;
         }
-        if ($nextClaim === null) {
-            $io->success('There are no more claims to process.');
+
+        $file = $input->getArgument('hcfa');
+        if ($file === null) {
+            $io->success('The next claim is from ' . $nextClaim->format('Y-m-d'));
 
             return Command::SUCCESS;
         }
