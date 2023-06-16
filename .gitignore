@@ -2,3 +2,5 @@
 .idea
 .php-cs-fixer.cache
 .env
+# For backups
+/var/
