@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace PossiblePromise\QbHealthcare\Type;
 
+use MongoDB\Driver\Cursor;
+
 final class FilterableArray implements \Iterator, \Countable
 {
     private array $items;
@@ -12,6 +14,16 @@ final class FilterableArray implements \Iterator, \Countable
     public function __construct(array $items)
     {
         $this->items = $items;
+    }
+
+    public static function fromCursor(Cursor $result): self
+    {
+        $items = [];
+        foreach ($result as $item) {
+            $items[] = $item;
+        }
+
+        return new self($items);
     }
 
     public function valid(): bool
