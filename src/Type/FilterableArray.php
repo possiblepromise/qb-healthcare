@@ -19,6 +19,7 @@ final class FilterableArray implements \Iterator, \Countable
     public static function fromCursor(Cursor $result): self
     {
         $items = [];
+
         foreach ($result as $item) {
             $items[] = $item;
         }
