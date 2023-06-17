@@ -90,7 +90,6 @@ final class ChargesRepository extends MongoRepository
         \DateTimeImmutable $endDate,
         array $charges = []
     ): ?ClaimSummary {
-        /** @var BSONIterator $result */
         $result = $this->charges->aggregate([
             self::getClaimsLookup(),
             ['$match' => self::getClaimQuery($client, $payer, $startDate, $endDate, $charges)],
@@ -141,7 +140,6 @@ final class ChargesRepository extends MongoRepository
      */
     public function getClaimCharges(string $client, string $payer, \DateTimeImmutable $startDate, \DateTimeImmutable $endDate, array $charges = []): array
     {
-        /** @var BSONIterator $result */
         $result = $this->charges->aggregate([
             self::getClaimsLookup(),
             ['$match' => self::getClaimQuery($client, $payer, $startDate, $endDate, $charges)],
@@ -174,7 +172,6 @@ final class ChargesRepository extends MongoRepository
 
     public function getInvoiceTotal(string $invoice): string
     {
-        /** @var BSONIterator $result */
         $result = $this->charges->aggregate([
             ['$match' => ['qbInvoiceNumber' => $invoice]],
             ['$group' => [
@@ -216,7 +213,6 @@ final class ChargesRepository extends MongoRepository
 
     public function findClient(string $lastName, string $firstName): ?string
     {
-        /** @var BSONIterator $result */
         $result = $this->charges->aggregate([
             ['$match' => [
                 'clientName' => [
