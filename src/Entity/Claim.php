@@ -12,6 +12,8 @@ final class Claim implements Persistable
 
     private string $billedAmount;
     private string $contractAmount;
+    private \DateTime $startDate;
+    private \DateTime $endDate;
     private PaymentInfo $paymentInfo;
 
     public function __construct(
@@ -103,9 +105,11 @@ final class Claim implements Persistable
         $this->fileId = $data['fileId'];
         $this->status = ClaimStatus::from($data['status']);
         $this->qbInvoiceId = $data['qbInvoiceId'];
-        $this->qbCreditMemoIds = $data['qbCreditMemoIds'];
+        $this->qbCreditMemoIds = $data['qbCreditMemoIds']->getArrayCopy();
         $this->billedAmount = (string) $data['billedAmount'];
         $this->contractAmount = (string) $data['contractAmount'];
+        $this->startDate = $data['startDate']->toDateTime();
+        $this->endDate = $data['endDate']->toDateTime();
         $this->paymentInfo = $data['paymentInfo'];
         $this->charges = $data['charges']->getArrayCopy();
 
