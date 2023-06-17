@@ -246,10 +246,10 @@ final class ChargesRepository extends MongoRepository
                 'from' => 'appointments',
                 'localField' => '_id',
                 'foreignField' => 'chargeId',
-                'as' => 'charges',
+                'as' => 'appointments',
             ]],
             ['$match' => [
-                'charges' => ['$size' => 0],
+                'appointments' => ['$size' => 0],
             ]],
         ]);
 
