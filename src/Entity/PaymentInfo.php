@@ -22,7 +22,7 @@ final class PaymentInfo implements Persistable
         private ?string $coinsurance = null,
         /** @var numeric-string|null */
         private ?string $deductible = null,
-        private \DateTime|null $postedDate = null
+        private ?\DateTime $postedDate = null
     ) {
     }
 
