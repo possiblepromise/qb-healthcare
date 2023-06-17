@@ -203,7 +203,6 @@ final class ClaimCreateCommand extends Command
         $this->claims->createClaim(
             $hcfa->claimId,
             $hcfa->fileId,
-            $summary,
             $invoice,
             $creditMemo,
             $charges
@@ -313,10 +312,10 @@ final class ClaimCreateCommand extends Command
         }
 
         if (!empty($remainingCharges)) {
-            throw new ClaimCreationException(
+            throw new ClaimCreationException(sprintf(
                 'The remaining charges do not have connected appointments: %s',
                 implode(', ', $remainingCharges)
-            );
+            ));
         }
     }
 
