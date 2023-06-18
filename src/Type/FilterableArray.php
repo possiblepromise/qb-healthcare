@@ -11,7 +11,7 @@ final class FilterableArray implements \Iterator, \Countable
     private array $items;
     private int $position = 0;
 
-    public function __construct(array $items)
+    public function __construct(array $items = [])
     {
         $this->items = $items;
     }
@@ -70,6 +70,11 @@ public function count(): int
     public function shift(): mixed
     {
         return array_shift($this->items);
+    }
+
+    public function add(mixed $item): void
+    {
+        $this->items[] = $item;
     }
 
     public function remove(mixed $item): void
