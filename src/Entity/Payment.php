@@ -12,7 +12,6 @@ final class Payment implements Persistable
 
     private \DateTime $paymentDate;
     private string $payment;
-    private ?\DateTime $postedDate;
     private Payer $payer;
 
     public function __construct(
@@ -82,7 +81,6 @@ final class Payment implements Persistable
         $this->paymentRef = $data['_id'];
         $this->paymentDate = $data['paymentDate']?->toDateTime();
         $this->payment = (string) $data['payment'];
-        $this->postedDate = $data['postedDate']?->toDateTime();
         $this->payer = $data['payer'];
         $this->qbPaymentId = $data['qbPaymentId'];
         $this->claims = $data['claims']->getArrayCopy();
