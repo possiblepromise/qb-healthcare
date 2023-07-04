@@ -11,7 +11,7 @@ final class Era835Reader
 
     public function __construct(string $file)
     {
-        $data = file_get_contents($file);
+        $data = self::readFileData($file);
         $this->segments = explode('~', $data);
 
         foreach ($this->segments as $i => $segment) {
@@ -78,6 +78,32 @@ final class Era835Reader
         }
 
         return $this->readElement($part, $subPart);
+    }
+
+    private static function readFileData(string $file): string
+    {
+        $extension = pathinfo($file, PATHINFO_EXTENSION);
+        if (strtolower($extension) === 'zip') {
+            $zip = new \ZipArchive();
+            $zip->open($file);
+
+            $foundFile = null;
+
+            for ($i = 0; $i < $zip->numFiles; ++$i) {
+                $name = $zip->getNameIndex($i);
+                if (str_ends_with($name, '.835')) {
+                    $foundFile = $name;
+                }
+            }
+
+            if ($foundFile === null) {
+                throw new \RuntimeException('No 835 file found in this zip.');
+            }
+
+            $file = "zip://{$file}#{$foundFile}";
+        }
+
+        return file_get_contents($file);
     }
 
     private static function toIndex(string $number): int
