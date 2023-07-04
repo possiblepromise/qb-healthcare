@@ -17,7 +17,8 @@ final class Payment implements Persistable
     public function __construct(
         private string $paymentRef,
         private string $qbPaymentId,
-        private array $claims = []
+        private array $claims = [],
+        private array $providerAdjustments = []
     ) {
     }
 
@@ -34,11 +35,6 @@ final class Payment implements Persistable
     public function getPayment(): string
     {
         return $this->payment;
-    }
-
-    public function getPostedDate(): ?\DateTime
-    {
-        return $this->postedDate;
     }
 
     public function getPayer(): Payer
@@ -73,6 +69,7 @@ final class Payment implements Persistable
             '_id' => $this->paymentRef,
             'qbPaymentId' => $this->qbPaymentId,
             'claims' => $this->claims,
+            'providerAdjustments' => $this->providerAdjustments,
         ]);
     }
 
@@ -84,6 +81,7 @@ final class Payment implements Persistable
         $this->payer = $data['payer'];
         $this->qbPaymentId = $data['qbPaymentId'];
         $this->claims = $data['claims']->getArrayCopy();
+        $this->providerAdjustments = $data['providerAdjustments'] === null ? [] : $data['providerAdjustments']->getArrayCopy();
 
         $this->unserializeCompanyId($data);
     }

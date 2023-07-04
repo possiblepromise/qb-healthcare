@@ -6,6 +6,9 @@ namespace PossiblePromise\QbHealthcare\Command;
 
 use PossiblePromise\QbHealthcare\Entity\Charge;
 use PossiblePromise\QbHealthcare\Entity\Claim;
+use PossiblePromise\QbHealthcare\Entity\Payer;
+use PossiblePromise\QbHealthcare\Entity\ProviderAdjustment;
+use PossiblePromise\QbHealthcare\Entity\ProviderAdjustmentType;
 use PossiblePromise\QbHealthcare\Era835Reader;
 use PossiblePromise\QbHealthcare\Exception\PaymentCreationException;
 use PossiblePromise\QbHealthcare\QuickBooks;
@@ -100,14 +103,22 @@ final class PaymentCreateCommand extends Command
         }
 
         $paymentTotal = '0.00';
+        /** @var Claim[] $claims */
         $claims = [];
+        $providerAdjustmentAmount = '0.00';
 
         try {
             while (bccomp($paymentTotal, $paymentAmount, 2) === -1) {
                 $claim = $this->processClaim($paymentRef, $depositDate, $era835);
 
-                $paymentTotal = bcadd($paymentTotal, $claim->getPaymentInfo()->getPayment(), 2);
-                $claims[] = $claim;
+                if ($claim === null) {
+                    // No more claims so there must be another adjustment
+                    $providerAdjustmentAmount = self::processProviderAdjustments($era835);
+                    $paymentTotal = bcadd($paymentTotal, $providerAdjustmentAmount, 2);
+                } else {
+                    $paymentTotal = bcadd($paymentTotal, $claim->getPaymentInfo()->getPayment(), 2);
+                    $claims[] = $claim;
+                }
             }
         } catch (PaymentCreationException $e) {
             $io->error($e->getMessage());
@@ -125,7 +136,7 @@ final class PaymentCreateCommand extends Command
             return Command::FAILURE;
         }
 
-        self::showPaidClaims($claims, $paymentTotal, $io);
+        self::showPaidClaims($claims, $providerAdjustmentAmount, $io);
 
         if (!$io->confirm('Continue?', false)) {
             return Command::SUCCESS;
@@ -135,7 +146,6 @@ final class PaymentCreateCommand extends Command
 
         // Verify the credits in QB
         try {
-            /** @var Claim $claim */
             foreach ($claims as $claim) {
                 $this->verifyQbInvoice($claim);
                 $this->syncAdjustmentsToQb($claim, $io);
@@ -146,16 +156,33 @@ final class PaymentCreateCommand extends Command
             return Command::FAILURE;
         }
 
-        $this->payments->create($paymentRef, $claims);
+        $adjustments = [];
+        if (bccomp($providerAdjustmentAmount, '0.00', 2) !== 0) {
+            $this->validateInterestItemSet($io);
+            $adjustments = $this->createProviderAdjustments(
+                $paymentRef,
+                $depositDate,
+                $claims[0]->getPaymentInfo()->getPayer(),
+                $providerAdjustmentAmount,
+                $io
+            );
+        }
+
+        $this->payments->create($paymentRef, $claims, $adjustments);
 
         $io->success(sprintf('Payment %s has been processed successfully.', $paymentRef));
 
         return Command::SUCCESS;
     }
 
-    private function processClaim(string $paymentRef, \DateTimeImmutable $paymentDate, Era835Reader $era835): Claim
+    private function processClaim(string $paymentRef, \DateTimeImmutable $paymentDate, Era835Reader $era835): ?Claim
     {
         $amountClaimed = $era835->read('CLP03');
+        if ($amountClaimed === null) {
+            // No more claims in the file
+            return null;
+        }
+
         $amountPaid = $era835->read('CLP04');
         $patientResponsibility = $era835->read('CLP05');
         $lastName = $era835->read('NM103');
@@ -328,14 +355,35 @@ final class PaymentCreateCommand extends Command
         return [$contractualAdjustment, $coinsurance];
     }
 
+    private static function processProviderAdjustments(Era835Reader $era835): string
+    {
+        $providerAdjustmentReason = $era835->read('PLB03-01');
+        if ($providerAdjustmentReason === null) {
+            throw new PaymentCreationException(
+                'No provider adjustment found but payment total is not adding up.'
+            );
+        }
+        if ($providerAdjustmentReason !== 'L6') {
+            throw new PaymentCreationException(
+                sprintf(
+                    'Do not know how to handle provider adjustment reason %s.',
+                    $providerAdjustmentReason
+                )
+            );
+        }
+
+        return bcmul($era835->read('PLB04'), '-1', 2);
+    }
+
     private static function showPaidClaims(
         array $claims,
-        string $paymentTotal,
+        string $providerAdjustmentAmount,
         SymfonyStyle $io
     ): void {
         $fmt = new \NumberFormatter('en_US', \NumberFormatter::CURRENCY);
 
         $table = [];
+        $paymentTotal = '0.00';
 
         /** @var Claim $claim */
         foreach ($claims as $claim) {
@@ -346,6 +394,20 @@ final class PaymentCreateCommand extends Command
                 $claim->getClientName(),
                 $fmt->formatCurrency((float) $claim->getPaymentInfo()->getPayment(), 'USD'),
             ];
+
+            $paymentTotal = bcadd($paymentTotal, $claim->getPaymentInfo()->getPayment(), 2);
+        }
+
+        if (bccomp($providerAdjustmentAmount, '0.00', 2) === 1) {
+            $table[] = [
+                'Interest owed',
+                '',
+                '',
+                '',
+                $fmt->formatCurrency((float) $providerAdjustmentAmount, 'USD'),
+            ];
+
+            $paymentTotal = bcadd($paymentTotal, $providerAdjustmentAmount, 2);
         }
 
         $table[] = [
@@ -378,6 +440,27 @@ final class PaymentCreateCommand extends Command
                 static fn (IPPItem $item) => $item->FullyQualifiedName === $name
             );
             $this->qb->getActiveCompany()->coinsuranceItem = $coinsuranceItem->Id;
+            $this->qb->save();
+        }
+    }
+
+    private function validateInterestItemSet(SymfonyStyle $io): void
+    {
+        if ($this->qb->getActiveCompany()->interestItem === null) {
+            $items = $this->items->findAllNotIn([
+                ...$this->payers->findAllServiceItemIds(),
+                $this->qb->getActiveCompany()->contractualAdjustmentItem,
+                $this->qb->getActiveCompany()->coinsuranceItem,
+            ]);
+            $io->text('Please select the item for interest payments.');
+            $name = $io->choice(
+                'Interest item',
+                $items->map(static fn (IPPItem $item) => $item->FullyQualifiedName)
+            );
+            $interestItem = $items->selectOne(
+                static fn (IPPItem $item) => $item->FullyQualifiedName === $name
+            );
+            $this->qb->getActiveCompany()->interestItem = $interestItem->Id;
             $this->qb->save();
         }
     }
@@ -490,5 +573,31 @@ final class PaymentCreateCommand extends Command
                 $fmt->formatCurrency((float) $creditedAdjustments, 'USD')
             ));
         }
+    }
+
+    /**
+     * @return ProviderAdjustment[]
+     */
+    private function createProviderAdjustments(
+        string $paymentRef,
+        \DateTimeInterface $paymentDate,
+        Payer $payer,
+        string $providerAdjustmentAmount,
+        SymfonyStyle $io
+    ): array {
+        $invoice = $this->invoices->createFromProviderAdjustment($paymentRef, $paymentDate, $payer, $providerAdjustmentAmount);
+        $fmt = new \NumberFormatter('en_US', \NumberFormatter::CURRENCY);
+        $io->text(sprintf(
+            'Created invoice %s for %s of interest.',
+            $invoice->DocNumber,
+            $fmt->formatCurrency((float) $invoice->TotalAmt, 'USD')
+        ));
+
+        $adjustment = new ProviderAdjustment(
+            $invoice,
+            ProviderAdjustmentType::interest,
+        );
+
+        return [$adjustment];
     }
 }

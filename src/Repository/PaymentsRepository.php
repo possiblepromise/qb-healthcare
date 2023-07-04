@@ -8,6 +8,8 @@ use MongoDB\Collection;
 use PossiblePromise\QbHealthcare\Database\MongoClient;
 use PossiblePromise\QbHealthcare\Entity\Claim;
 use PossiblePromise\QbHealthcare\Entity\Payment as PaymentEntity;
+use PossiblePromise\QbHealthcare\Entity\ProviderAdjustment;
+use PossiblePromise\QbHealthcare\Entity\ProviderAdjustmentType;
 use PossiblePromise\QbHealthcare\QuickBooks;
 use QuickBooksOnline\API\Data\IPPCreditMemo;
 use QuickBooksOnline\API\Data\IPPInvoice;
@@ -32,9 +34,10 @@ final class PaymentsRepository
     }
 
     /**
-     * @param Claim[] $claims
+     * @param Claim[]              $claims
+     * @param ProviderAdjustment[] $providerAdjustments
      */
-    public function create(string $paymentRef, array $claims): IPPPayment
+    public function create(string $paymentRef, array $claims, array $providerAdjustments = []): IPPPayment
     {
         if (empty($claims)) {
             throw new \RuntimeException('At least one claim must be passed to create a payment.');
@@ -55,6 +58,14 @@ final class PaymentsRepository
             }
         }
 
+        foreach ($providerAdjustments as $adjustment) {
+            $total = bcadd($total, $adjustment->getAmount(), 2);
+
+            if ($adjustment->getType() === ProviderAdjustmentType::interest) {
+                $lines[] = self::createPaymentLine('Invoice', $adjustment->getQbEntityId(), $adjustment->getAmount());
+            }
+        }
+
         $payment = Payment::create([
             'TotalAmt' => $total,
             'CustomerRef' => [
@@ -69,7 +80,7 @@ final class PaymentsRepository
         /** @var IPPPayment $payment */
         $payment = $this->getDataService()->add($payment);
 
-        $paymentEntity = new PaymentEntity($paymentRef, $payment->Id, $claimIds);
+        $paymentEntity = new PaymentEntity($paymentRef, (string) $payment->Id, $claimIds, $providerAdjustments);
         $paymentEntity->setQbCompanyId($this->qb->getActiveCompany()->realmId);
         $this->payments->insertOne($paymentEntity);
         $this->claims->markPaid($paymentRef);
@@ -82,7 +93,7 @@ final class PaymentsRepository
         return self::createPaymentLine(
             'Invoice',
             (string) $invoice->Id,
-            (float) $invoice->TotalAmt
+            (string) $invoice->TotalAmt
         );
     }
 
@@ -91,14 +102,14 @@ final class PaymentsRepository
         return self::createPaymentLine(
             'CreditMemo',
             (string) $creditMemo->Id,
-            (float) $creditMemo->TotalAmt
+            (string) $creditMemo->TotalAmt
         );
     }
 
     private static function createPaymentLine(
         string $txnType,
         string $txnId,
-        float $amount
+        string $amount
     ): array {
         return [
             'Amount' => $amount,
