@@ -469,8 +469,16 @@ final class PaymentCreateCommand extends Command
             $claim->addQbCreditMemo($creditMemo);
             $this->claims->save($claim);
 
-            $creditedAdjustments = bcadd($creditedAdjustments, (string) $creditMemo->TotalAmt, 2);
             $creditedCoinsurance = bcadd($creditedCoinsurance, (string) $creditMemo->TotalAmt, 2);
+            if (bccomp($coinsurance, $creditedCoinsurance, 2) !== 0) {
+                throw new PaymentCreationException(sprintf(
+                    'Expected coinsurance of %s, but got %s.',
+                    $fmt->formatCurrency((float) $coinsurance, 'USD'),
+                    $fmt->formatCurrency((float) $creditedCoinsurance, 'USD')
+                ));
+            }
+
+            $creditedAdjustments = bcadd($creditedAdjustments, (string) $creditMemo->TotalAmt, 2);
         } else {
             $io->text(sprintf('No credit memos to create for %s.', $claim->getBillingId()));
         }
@@ -480,14 +488,6 @@ final class PaymentCreateCommand extends Command
                 'Expected total adjustments of %s, but adjustments of %s were encountered.',
                 $fmt->formatCurrency((float) $totalAdjustments, 'USD'),
                 $fmt->formatCurrency((float) $creditedAdjustments, 'USD')
-            ));
-        }
-
-        if (bccomp($coinsurance, $creditedCoinsurance, 2) !== 0) {
-            throw new PaymentCreationException(sprintf(
-                'Expected coinsurance of %s, but got %s.',
-                $fmt->formatCurrency((float) $coinsurance, 'USD'),
-                $fmt->formatCurrency((float) $creditedCoinsurance, 'USD')
             ));
         }
     }
