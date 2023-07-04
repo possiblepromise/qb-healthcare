@@ -56,6 +56,21 @@ final class InvoicesRepository
         $this->getDataService()->Delete($invoice);
     }
 
+    public function get(string $invoiceId): IPPInvoice
+    {
+        return $this->getDataService()->FindById('Invoice', $invoiceId);
+    }
+
+    public function setMemo(IPPInvoice $invoice, string $memo): void
+    {
+        $updatedInvoice = Invoice::update($invoice, [
+            'sparse' => true,
+            'PrivateNote' => $memo,
+        ]);
+
+        $this->getDataService()->Update($updatedInvoice);
+    }
+
     private static function createInvoiceLineFromCharge(int $lineNum, Charge $charge): array
     {
         $service = $charge->getPrimaryPaymentInfo()->getPayer()->getServices()[0];
@@ -74,20 +89,5 @@ final class InvoicesRepository
             'Amount' => $charge->getBilledAmount(),
             'Description' => $charge->getChargeLine(),
         ];
-    }
-
-    public function get(string $invoiceId): IPPInvoice
-    {
-        return $this->getDataService()->FindById('Invoice', $invoiceId);
-    }
-
-    public function setMemo(IPPInvoice $invoice, string $memo): void
-    {
-        $updatedInvoice = Invoice::update($invoice, [
-            'sparse' => true,
-            'PrivateNote' => $memo,
-        ]);
-
-        $this->getDataService()->Update($updatedInvoice);
     }
 }
