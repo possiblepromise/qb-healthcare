@@ -14,11 +14,13 @@ final class Claim implements Persistable
     private string $contractAmount;
     private \DateTime $startDate;
     private \DateTime $endDate;
+    private string $clientName;
     private PaymentInfo $paymentInfo;
 
     public function __construct(
         private string $id,
         private string $fileId,
+        private ?string $billingId = null,
         private ClaimStatus $status = ClaimStatus::processed,
         private ?string $qbInvoiceId = null,
         /** @var numeric-string[] */
@@ -36,6 +38,16 @@ final class Claim implements Persistable
     public function getFileId(): string
     {
         return $this->fileId;
+    }
+
+    public function getBillingId(): ?string
+    {
+        return $this->billingId;
+    }
+
+    public function setBillingId(string $billingId): void
+    {
+        $this->billingId = $billingId;
     }
 
     public function getStatus(): ClaimStatus
@@ -61,6 +73,21 @@ final class Claim implements Persistable
     public function getContractAmount(): string
     {
         return $this->contractAmount;
+    }
+
+    public function getStartDate(): \DateTime
+    {
+        return $this->startDate;
+    }
+
+    public function getEndDate(): \DateTime
+    {
+        return $this->endDate;
+    }
+
+    public function getClientName(): string
+    {
+        return $this->clientName;
     }
 
     public function getPaymentInfo(): PaymentInfo
@@ -92,6 +119,7 @@ final class Claim implements Persistable
         return $this->serializeCompanyId([
             '_id' => $this->id,
             'fileId' => $this->fileId,
+            'billingId' => $this->billingId,
             'status' => $this->status,
             'qbInvoiceId' => $this->qbInvoiceId,
             'qbCreditMemoIds' => $this->qbCreditMemoIds,
@@ -103,6 +131,7 @@ final class Claim implements Persistable
     {
         $this->id = $data['_id'];
         $this->fileId = $data['fileId'];
+        $this->billingId = $data['billingId'] ?? null;
         $this->status = ClaimStatus::from($data['status']);
         $this->qbInvoiceId = $data['qbInvoiceId'];
         $this->qbCreditMemoIds = $data['qbCreditMemoIds']->getArrayCopy();
@@ -110,6 +139,7 @@ final class Claim implements Persistable
         $this->contractAmount = (string) $data['contractAmount'];
         $this->startDate = $data['startDate']->toDateTime();
         $this->endDate = $data['endDate']->toDateTime();
+        $this->clientName = $data['clientName'];
         $this->paymentInfo = $data['paymentInfo'];
         $this->charges = $data['charges']->getArrayCopy();
 
