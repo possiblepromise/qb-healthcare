@@ -18,13 +18,6 @@ final class InvoicesRepository
         $this->qb = $qb;
     }
 
-    public function findByDocNumber(string $docNumber): array
-    {
-        return $this->getDataService()->Query(
-            "SELECT * FROM Invoice WHERE DocNumber = '{$docNumber}'"
-        );
-    }
-
     /**
      * @param Charge[] $charges
      */
@@ -81,5 +74,20 @@ final class InvoicesRepository
             'Amount' => $charge->getBilledAmount(),
             'Description' => $charge->getChargeLine(),
         ];
+    }
+
+    public function get(string $invoiceId): IPPInvoice
+    {
+        return $this->getDataService()->FindById('Invoice', $invoiceId);
+    }
+
+    public function setMemo(IPPInvoice $invoice, string $memo): void
+    {
+        $updatedInvoice = Invoice::update($invoice, [
+            'sparse' => true,
+            'PrivateNote' => $memo,
+        ]);
+
+        $this->getDataService()->Update($updatedInvoice);
     }
 }

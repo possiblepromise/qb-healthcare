@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PossiblePromise\QbHealthcare\Entity;
 
 use MongoDB\BSON\Persistable;
+use QuickBooksOnline\API\Data\IPPCreditMemo;
 
 final class Claim implements Persistable
 {
@@ -60,9 +61,17 @@ final class Claim implements Persistable
         return $this->qbInvoiceId;
     }
 
+    /**
+     * @return string[]
+     */
     public function getQbCreditMemoIds(): array
     {
         return $this->qbCreditMemoIds;
+    }
+
+    public function addQbCreditMemo(IPPCreditMemo $creditMemo): void
+    {
+        $this->qbCreditMemoIds[] = $creditMemo->Id;
     }
 
     public function getBilledAmount(): string

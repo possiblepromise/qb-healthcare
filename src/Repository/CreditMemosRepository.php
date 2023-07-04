@@ -5,17 +5,23 @@ declare(strict_types=1);
 namespace PossiblePromise\QbHealthcare\Repository;
 
 use PossiblePromise\QbHealthcare\Entity\Charge;
+use PossiblePromise\QbHealthcare\Entity\Claim;
 use PossiblePromise\QbHealthcare\QuickBooks;
+use PossiblePromise\QbHealthcare\Type\FilterableArray;
 use QuickBooksOnline\API\Data\IPPCreditMemo;
+use QuickBooksOnline\API\DataService\DataService;
 use QuickBooksOnline\API\Facades\CreditMemo;
 
 final class CreditMemosRepository
 {
     use QbApiTrait;
 
+    private DataService $dataService;
+
     public function __construct(QuickBooks $qb)
     {
         $this->qb = $qb;
+        $this->dataService = $this->getDataService();
     }
 
     /**
@@ -38,7 +44,55 @@ final class CreditMemosRepository
             'PrivateNote' => $claimId,
         ]);
 
-        return $this->getDataService()->add($creditMemo);
+        return $this->dataService->add($creditMemo);
+    }
+
+    public function createCoinsuranceCredit(Claim $claim, FilterableArray $charges): IPPCreditMemo
+    {
+        $lines = [];
+
+        /** @var Charge $charge */
+        foreach ($charges as $i => $charge) {
+            if (bccomp($charge->getPrimaryPaymentInfo()->getCoinsurance(), '0.00', 2) === 0) {
+                continue;
+            }
+
+            $lines[] = self::createCreditMemoLine(
+                lineNum: $i + 1,
+                date: $charge->getServiceDate(),
+                item: $this->qb->getActiveCompany()->coinsuranceItem,
+                description: $charge->getChargeLine(),
+                quantity: 1,
+                unitPrice: $charge->getPrimaryPaymentInfo()->getCoinsurance()
+            );
+        }
+
+        $creditMemo = CreditMemo::create([
+            'AutoDocNumber' => true,
+            'Line' => $lines,
+            'CustomerRef' => [
+                'value' => $claim->getPaymentInfo()->getPayer()->getQbCustomerId(),
+            ],
+            'TxnDate' => $claim->getPaymentInfo()->getPaymentDate()->format('Y-m-d'),
+            'PrivateNote' => $claim->getBillingId(),
+        ]);
+
+        return $this->dataService->add($creditMemo);
+    }
+
+    public function get(string $creditMemoId): IPPCreditMemo
+    {
+        return $this->dataService->FindById('CreditMemo', $creditMemoId);
+    }
+
+    public function setMemo(IPPCreditMemo $creditMemo, string $memo): void
+    {
+        $updatedCreditMemo = CreditMemo::update($creditMemo, [
+            'sparse' => true,
+            'PrivateNote' => $memo,
+        ]);
+
+        $this->getDataService()->Update($updatedCreditMemo);
     }
 
     private function createCreditMemoLineFromCharge(int $lineNum, Charge $charge): array

@@ -41,14 +41,39 @@ final class PaymentInfo implements Persistable
         return $this->paymentDate;
     }
 
+    public function setPaymentDate(\DateTime|\DateTimeImmutable $paymentDate): self
+    {
+        if ($paymentDate instanceof \DateTimeImmutable) {
+            $paymentDate = \DateTime::createFromImmutable($paymentDate);
+        }
+
+        $this->paymentDate = $paymentDate;
+
+        return $this;
+    }
+
     public function getPayment(): ?string
     {
         return $this->payment;
     }
 
+    public function setPayment(string $payment): self
+    {
+        $this->payment = $payment;
+
+        return $this;
+    }
+
     public function getPaymentRef(): ?string
     {
         return $this->paymentRef;
+    }
+
+    public function setPaymentRef(string $paymentRef): self
+    {
+        $this->paymentRef = $paymentRef;
+
+        return $this;
     }
 
     /**
@@ -57,6 +82,13 @@ final class PaymentInfo implements Persistable
     public function getCoinsurance(): ?string
     {
         return $this->coinsurance;
+    }
+
+    public function setCoinsurance(?string $coinsurance): self
+    {
+        $this->coinsurance = $coinsurance ?? '0.00';
+
+        return $this;
     }
 
     public function getPostedDate(): ?\DateTime
@@ -82,13 +114,13 @@ final class PaymentInfo implements Persistable
     public function bsonUnserialize(array $data): void
     {
         $this->payer = $data['payer'];
-        $this->billedDate = $data['billedDate'] ? $data['billedDate']->toDateTime() : null;
-        $this->paymentDate = $data['paymentDate'] ? $data['paymentDate']->toDateTime() : null;
+        $this->billedDate = $data['billedDate']?->toDateTime();
+        $this->paymentDate = $data['paymentDate']?->toDateTime();
         $this->payment = $data['payment'] ? (string) $data['payment'] : null;
         $this->paymentRef = $data['paymentRef'] ?? null;
         $this->copay = ((string) $data['copay']);
         $this->coinsurance = ((string) $data['coinsurance']);
         $this->deductible = ((string) $data['deductible']);
-        $this->postedDate = $data['postedDate'] ? $data['postedDate']->toDateTime() : null;
+        $this->postedDate = $data['postedDate']?->toDateTime();
     }
 }

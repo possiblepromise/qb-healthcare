@@ -13,14 +13,11 @@ final class Charge implements Persistable
     use BelongsToCompanyTrait;
 
     public function __construct(
-        /** @var numeric-string */
         private string $chargeLine,
         private \DateTime $serviceDate,
         private string $clientName,
         private Service $service,
-        /** @var numeric-string */
         private string $billedAmount,
-        /** @var numeric-string|null */
         private ?string $contractAmount,
         private int $billedUnits,
         private PaymentInfo $primaryPaymentInfo,
@@ -28,9 +25,6 @@ final class Charge implements Persistable
     ) {
     }
 
-    /**
-     * @return numeric-string
-     */
     public function getChargeLine(): string
     {
         return $this->chargeLine;
@@ -51,17 +45,11 @@ final class Charge implements Persistable
         return $this->service;
     }
 
-    /**
-     * @return numeric-string
-     */
     public function getBilledAmount(): string
     {
         return $this->billedAmount;
     }
 
-    /**
-     * @return numeric-string|null
-     */
     public function getContractAmount(): ?string
     {
         return $this->contractAmount;
@@ -75,6 +63,13 @@ final class Charge implements Persistable
     public function getPrimaryPaymentInfo(): PaymentInfo
     {
         return $this->primaryPaymentInfo;
+    }
+
+    public function setPayerBalance(string $payerBalance): self
+    {
+        $this->payerBalance = $payerBalance;
+
+        return $this;
     }
 
     public function bsonSerialize(): array

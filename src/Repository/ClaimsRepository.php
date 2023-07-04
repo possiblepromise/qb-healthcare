@@ -22,8 +22,8 @@ final class ClaimsRepository extends MongoRepository
 
     public function __construct(MongoClient $client, QuickBooks $qb, private PayersRepository $payers, private ChargesRepository $charges)
     {
-        $this->claims = $client->getDatabase()->claims;
-        $this->claimData = $client->getDatabase()->claimData;
+        $this->claims = $client->getDatabase()->selectCollection('claims');
+        $this->claimData = $client->getDatabase()->selectCollection('claimData');
         $this->qb = $qb;
     }
 
@@ -51,5 +51,54 @@ final class ClaimsRepository extends MongoRepository
         $claim->setQbCompanyId($this->qb->getActiveCompany()->realmId);
 
         $this->claimData->insertOne($claim);
+    }
+
+    public function findOneByCharges(FilterableArray $charges): ?Claim
+    {
+        return $this->claims->findOne([
+            'charges' => [
+                '$all' => $charges->map(static fn (Charge $charge): string => $charge->getChargeLine()),
+            ],
+        ]);
+    }
+
+    public function save(Claim $claim): void
+    {
+        $this->claimData->updateOne(
+            ['_id' => $claim->getId()],
+            ['$set' => $claim]
+        );
+    }
+
+    public function getNextUnpaidClaim(): ?Claim
+    {
+        return $this->claims->findOne(
+            [
+                'status' => 'processed',
+                'billingId' => null,
+            ]
+        );
+    }
+
+    public function get(string $claimId): Claim
+    {
+        return $this->claims->findOne(['_id' => $claimId]);
+    }
+
+    public function markPaid(string $paymentRef): void
+    {
+        $result = $this->claims->find(['paymentInfo.paymentRef' => $paymentRef]);
+
+        $claimIds = [];
+
+        /** @var Claim $claim */
+        foreach ($result as $claim) {
+            $claimIds[] = $claim->getId();
+        }
+
+        $this->claimData->updateMany(
+            ['_id' => ['$in' => $claimIds]],
+            ['$set' => ['status' => ClaimStatus::paid]]
+        );
     }
 }
