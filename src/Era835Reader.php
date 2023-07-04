@@ -42,9 +42,14 @@ final class Era835Reader
             $subPart = $matches[3];
         }
 
+        $prevPosition = $this->currentSegment;
+
         while ($this->segments[$this->currentSegment][0][0] !== $segment) {
             ++$this->currentSegment;
+
             if ($this->currentSegment >= \count($this->segments)) {
+                $this->currentSegment = $prevPosition;
+
                 return null;
             }
         }
