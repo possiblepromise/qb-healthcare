@@ -34,8 +34,7 @@
         "webmozart/assert": "^1.11"
     },
   "require-dev": {
-    "vimeo/psalm": "^5.12",
-        "devbanana/php-cs-fixer-config": "dev-master"
+    "devbanana/php-cs-fixer-config": "dev-master"
   },
   "autoload": {
     "psr-4": {
