@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace PossiblePromise\QbHealthcare\Repository;
 
+use MongoDB\BSON\Decimal128;
+use MongoDB\BSON\UTCDateTime;
 use MongoDB\Collection;
 use PossiblePromise\QbHealthcare\Database\MongoClient;
 use PossiblePromise\QbHealthcare\Entity\Charge;
@@ -100,5 +102,16 @@ final class ClaimsRepository extends MongoRepository
             ['_id' => ['$in' => $claimIds]],
             ['$set' => ['status' => ClaimStatus::paid]]
         );
+    }
+
+    public function findByDateAndBilledAmount(\DateTime $date, $billed)
+    {
+        $result = $this->claims->find([
+            'paymentInfo.billedDate' => new UTCDateTime($date),
+            'billedAmount' => new Decimal128($billed),
+            'billingId' => null,
+        ]);
+
+        return FilterableArray::fromCursor($result);
     }
 }
