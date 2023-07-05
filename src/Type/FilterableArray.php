@@ -86,6 +86,11 @@ public function count(): int
         }
     }
 
+    public function contains(mixed $item): bool
+    {
+        return array_search($item, $this->items, true) !== false;
+    }
+
     public function map(callable $callback): array
     {
         return array_values(array_map($callback, $this->items));

@@ -221,6 +221,22 @@ final class ChargesRepository extends MongoRepository
         return FilterableArray::fromCursor($result);
     }
 
+    public function findByLineItem(
+        \DateTimeInterface $serviceDate,
+        string $billingCode,
+        string $billedAmount,
+        string $clientName
+    ): FilterableArray {
+        $result = $this->unpaidCharges->find([
+            'billedAmount' => new Decimal128($billedAmount),
+            'serviceDate' => new UTCDateTime($serviceDate),
+            'clientName' => $clientName,
+            'primaryPaymentInfo.payer.services._id' => $billingCode,
+        ]);
+
+        return FilterableArray::fromCursor($result);
+    }
+
     public function findByClaim(Claim $claim): FilterableArray
     {
         /** @var Cursor $result */
