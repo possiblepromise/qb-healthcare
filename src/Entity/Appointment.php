@@ -45,6 +45,11 @@ final class Appointment implements Persistable
         return $this->serviceDate;
     }
 
+    public function getClientName(): string
+    {
+        return $this->clientName;
+    }
+
     public function getUnits(): int
     {
         return $this->units;
