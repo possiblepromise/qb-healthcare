@@ -6,7 +6,6 @@ declare(strict_types=1);
 
 namespace PossiblePromise\QbHealthcare\Command;
 
-use PossiblePromise\QbHealthcare\QuickBooks;
 use PossiblePromise\QbHealthcare\Repository\AppointmentsRepository;
 use PossiblePromise\QbHealthcare\Repository\ItemsRepository;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -24,8 +23,7 @@ final class AppointmentGetUnbilledTotalCommand extends Command
 {
     public function __construct(
         private AppointmentsRepository $appointments,
-        private ItemsRepository $items,
-        private QuickBooks $qb
+        private ItemsRepository $items
     ) {
         parent::__construct();
     }
