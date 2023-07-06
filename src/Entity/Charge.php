@@ -21,7 +21,7 @@ final class Charge implements Persistable
         private ?string $contractAmount,
         private int $billedUnits,
         private PaymentInfo $primaryPaymentInfo,
-        private string $payerBalance
+        private string $payerBalance = '0.00'
     ) {
     }
 
@@ -74,7 +74,7 @@ final class Charge implements Persistable
 
     public function bsonSerialize(): array
     {
-        return $this->serializeCompanyId([
+        $data = [
             '_id' => $this->chargeLine,
             'serviceDate' => new UTCDateTime($this->serviceDate),
             'clientName' => $this->clientName,
@@ -83,8 +83,13 @@ final class Charge implements Persistable
             'contractAmount' => $this->contractAmount ? new Decimal128($this->contractAmount) : null,
             'billedUnits' => $this->billedUnits,
             'primaryPaymentInfo' => $this->primaryPaymentInfo,
-            'payerBalance' => $this->payerBalance ? new Decimal128($this->payerBalance) : new Decimal128('0.00'),
-        ]);
+        ];
+
+        if (bccomp($this->payerBalance, '0.00', 2) !== 0) {
+            $data['payerBalance'] = new Decimal128($this->payerBalance);
+        }
+
+        return $this->serializeCompanyId($data);
     }
 
     public function bsonUnserialize(array $data): void

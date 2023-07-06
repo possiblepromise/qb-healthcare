@@ -12,17 +12,13 @@ final class PaymentInfo implements Persistable
 {
     public function __construct(
         private Payer $payer,
-        private ?\DateTime $billedDate = null,
-        private ?\DateTime $paymentDate = null,
+        private \DateTimeInterface $billedDate,
+        private ?\DateTimeInterface $paymentDate = null,
         private ?string $payment = null,
         private ?string $paymentRef = null,
-        /** @var numeric-string|null */
-        private ?string $copay = null,
-        /** @var numeric-string|null */
-        private ?string $coinsurance = null,
-        /** @var numeric-string|null */
-        private ?string $deductible = null,
-        private ?\DateTime $postedDate = null
+        private string $copay = '0.00',
+        private string $coinsurance = '0.00',
+        private string $deductible = '0.00'
     ) {
     }
 
@@ -31,22 +27,18 @@ final class PaymentInfo implements Persistable
         return $this->payer;
     }
 
-    public function getBilledDate(): ?\DateTime
+    public function getBilledDate(): \DateTimeInterface
     {
         return $this->billedDate;
     }
 
-    public function getPaymentDate(): ?\DateTime
+    public function getPaymentDate(): ?\DateTimeInterface
     {
         return $this->paymentDate;
     }
 
-    public function setPaymentDate(\DateTime|\DateTimeImmutable $paymentDate): self
+    public function setPaymentDate(\DateTimeInterface $paymentDate): self
     {
-        if ($paymentDate instanceof \DateTimeImmutable) {
-            $paymentDate = \DateTime::createFromImmutable($paymentDate);
-        }
-
         $this->paymentDate = $paymentDate;
 
         return $this;
@@ -91,36 +83,29 @@ final class PaymentInfo implements Persistable
         return $this;
     }
 
-    public function getPostedDate(): ?\DateTime
-    {
-        return $this->postedDate;
-    }
-
     public function bsonSerialize(): array
     {
         return [
             'payer' => $this->payer,
-            'billedDate' => $this->billedDate ? new UTCDateTime($this->billedDate) : null,
+            'billedDate' => new UTCDateTime($this->billedDate),
             'paymentDate' => $this->paymentDate ? new UTCDateTime($this->paymentDate) : null,
             'payment' => $this->payment ? new Decimal128($this->payment) : null,
             'paymentRef' => $this->paymentRef,
-            'copay' => $this->copay ? new Decimal128($this->copay) : new Decimal128('0.00'),
-            'coinsurance' => $this->coinsurance ? new Decimal128($this->coinsurance) : new Decimal128('0.00'),
-            'deductible' => $this->deductible ? new Decimal128($this->deductible) : new Decimal128('0.00'),
-            'postedDate' => $this->postedDate ? new UTCDateTime($this->postedDate) : null,
+            'copay' => new Decimal128($this->copay),
+            'coinsurance' => new Decimal128($this->coinsurance),
+            'deductible' => new Decimal128($this->deductible),
         ];
     }
 
     public function bsonUnserialize(array $data): void
     {
         $this->payer = $data['payer'];
-        $this->billedDate = $data['billedDate']?->toDateTime();
+        $this->billedDate = $data['billedDate']->toDateTime();
         $this->paymentDate = $data['paymentDate']?->toDateTime();
         $this->payment = $data['payment'] ? (string) $data['payment'] : null;
         $this->paymentRef = $data['paymentRef'] ?? null;
         $this->copay = ((string) $data['copay']);
         $this->coinsurance = ((string) $data['coinsurance']);
         $this->deductible = ((string) $data['deductible']);
-        $this->postedDate = $data['postedDate']?->toDateTime();
     }
 }

@@ -21,8 +21,6 @@ final class ChargeSerializer
      */
     public function unserialize(string $file): array
     {
-        $emptyToNull = static fn (string $value): ?string => empty($value) ? null : $value;
-
         $fileData = file_get_contents($file);
 
         $dateContextBuilder = (new DateTimeNormalizerContextBuilder())
@@ -33,13 +31,7 @@ final class ChargeSerializer
         $objectContextBuilder = (new ObjectNormalizerContextBuilder())
             ->withContext($dateContextBuilder)
             ->withCallbacks([
-                'contractAmount' => $emptyToNull,
-                'primaryPayment' => $emptyToNull,
-                'primaryPaymentRef' => $emptyToNull,
-                'copay' => $emptyToNull,
-                'coinsurance' => $emptyToNull,
-                'deductible' => $emptyToNull,
-                'payerBalance' => static fn (string $value): string => empty($value) ? '0' : $value,
+                'contractAmount' => static fn (string $value): ?string => empty($value) ? null : $value,
             ])
         ;
 
@@ -54,8 +46,4 @@ final class ChargeSerializer
 
         return $lines;
     }
-
-    /**
-     * @return ChargeLine[]
-     */
 }

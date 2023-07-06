@@ -51,13 +51,6 @@ final class ChargesRepository extends MongoRepository
             $paymentInfo = new PaymentInfo(
                 payer: $payer,
                 billedDate: $line->primaryBilledDate,
-                paymentDate: $line->primaryPaymentDate,
-                payment: $line->primaryPayment,
-                paymentRef: $line->primaryPaymentRef,
-                copay: $line->copay,
-                coinsurance: $line->coinsurance,
-                deductible: $line->deductible,
-                postedDate: $line->primaryPostedDate
             );
 
             $charge = new Charge(
@@ -69,19 +62,18 @@ final class ChargesRepository extends MongoRepository
                 contractAmount: $line->contractAmount,
                 billedUnits: $line->billedUnits,
                 primaryPaymentInfo: $paymentInfo,
-                payerBalance: $line->payerBalance
+                payerBalance: $line->billedAmount
             );
 
             $charge->setQbCompanyId($this->qb->getActiveCompany(true)->realmId);
 
             $result = $this->charges->updateOne(
                 ['_id' => $charge->getChargeLine()],
-                ['$set' => $charge],
+                ['$setOnInsert' => $charge],
                 ['upsert' => true]
             );
 
             $imported->new += $result->getUpsertedCount() ?? 0;
-            $imported->modified += $result->getModifiedCount() ?? 0;
         }
 
         return $imported;
@@ -110,7 +102,6 @@ final class ChargesRepository extends MongoRepository
                     'copay' => ['$sum' => '$primaryPaymentInfo.copay'],
                     'coinsurance' => ['$sum' => '$primaryPaymentInfo.coinsurance'],
                     'deductible' => ['$sum' => '$primaryPaymentInfo.deductible'],
-                    'postedDate' => ['$first' => '$primaryPaymentInfo.postedDate'],
                 ],
             ],
         ]);
@@ -133,8 +124,7 @@ final class ChargesRepository extends MongoRepository
             paymentRef: $data['paymentRef'],
             copay: (string) $data['copay'],
             coinsurance: (string) $data['coinsurance'],
-            deductible: (string) $data['deductible'],
-            postedDate: $data['postedDate']?->toDateTime()
+            deductible: (string) $data['deductible']
         );
     }
 

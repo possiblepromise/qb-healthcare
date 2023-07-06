@@ -59,10 +59,8 @@ final class ImportChargesCommand extends Command
 
         $io->success(
             sprintf(
-                'Imported %d charges: %d new and %d modified',
-                $imported->new + $imported->modified,
-                $imported->new,
-                $imported->modified
+                'Imported %d charges',
+                $imported->new
             )
         );
 
