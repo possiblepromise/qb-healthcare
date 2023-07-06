@@ -177,7 +177,7 @@ final class ChargesRepository extends MongoRepository
     {
         $result = $this->charges->aggregate([
             ['$lookup' => [
-                'from' => 'appointments',
+                'from' => 'completedAppointments',
                 'localField' => '_id',
                 'foreignField' => 'chargeId',
                 'as' => 'appointments',

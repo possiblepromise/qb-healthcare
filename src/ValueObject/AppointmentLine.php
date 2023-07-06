@@ -11,7 +11,6 @@ use Symfony\Component\Serializer\Annotation\SerializedName;
 final class AppointmentLine
 {
     public function __construct(
-        /** @var numeric-string */
         #[SerializedName('Appointment ID')]
         public readonly string $id,
         #[SerializedName('Payer Name')]
@@ -26,12 +25,13 @@ final class AppointmentLine
         public readonly string $billingCode,
         #[SerializedName('Units')]
         public readonly ?int $units,
-        /** @var numeric-string|null */
         #[SerializedName('Charge')]
         public readonly ?string $charge,
         #[SerializedName('Date Billed')]
         #[Context([DateOrNullDenormalizer::NULLABLE_KEY => true])]
-        public readonly ?\DateTime $dateBilled
+        public readonly ?\DateTime $dateBilled,
+        #[SerializedName('Appointment Status')]
+        public readonly string $status,
     ) {
     }
 }

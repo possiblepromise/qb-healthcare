@@ -20,10 +20,12 @@ final class AppointmentsRepository extends MongoRepository
     use QbApiTrait;
 
     private Collection $appointments;
+    private Collection $completedAppointments;
 
     public function __construct(MongoClient $client, private readonly PayersRepository $payers, private ChargesRepository $charges, QuickBooks $qb)
     {
-        $this->appointments = $client->getDatabase()->appointments;
+        $this->appointments = $client->getDatabase()->selectCollection('appointments');
+        $this->completedAppointments = $client->getDatabase()->selectCollection('completedAppointments');
         $this->qb = $qb;
     }
 
@@ -36,7 +38,7 @@ final class AppointmentsRepository extends MongoRepository
 
         foreach ($lines as $line) {
             // Don't care about canceled appointments
-            if ($line->completed === false
+            if ($line->status !== 'Active'
             || $line->units === null
             || $line->charge === null) {
                 continue;
@@ -55,6 +57,7 @@ final class AppointmentsRepository extends MongoRepository
                 units: $line->units,
                 charge: $line->charge,
                 dateBilled: $line->dateBilled,
+                completed: $line->completed,
             );
 
             $appointment->setQbCompanyId($this->qb->getActiveCompany(true)->realmId);
@@ -81,7 +84,7 @@ final class AppointmentsRepository extends MongoRepository
         string $clientName,
         string $billingCode,
     ): array {
-        $result = $this->appointments->find([
+        $result = $this->completedAppointments->find([
             'serviceDate' => new UTCDateTime($serviceDate),
             'clientName' => $clientName,
             'payer.name' => $payerName,
@@ -110,7 +113,7 @@ final class AppointmentsRepository extends MongoRepository
      */
     public function findUnbilledWithoutJournalEntries(): array
     {
-        $result = $this->appointments->aggregate([
+        $result = $this->completedAppointments->aggregate([
             self::getClaimsLookup(),
             ['$match' => [
                 'claims' => ['$size' => 0],
@@ -127,7 +130,7 @@ final class AppointmentsRepository extends MongoRepository
      */
     public function findUnbilledAsOf(\DateTime $date): array
     {
-        $result = $this->appointments->aggregate([
+        $result = $this->completedAppointments->aggregate([
             self::getClaimsLookup(),
             ['$match' => [
                 'claims' => ['$size' => 0],
@@ -152,7 +155,7 @@ final class AppointmentsRepository extends MongoRepository
             static fn (Charge $charge): string => $charge->getChargeLine()
         );
 
-        $result = $this->appointments->aggregate([
+        $result = $this->completedAppointments->aggregate([
             self::getClaimsLookup(),
             ['$match' => [
                 'claims' => ['$size' => 0],
@@ -168,7 +171,7 @@ final class AppointmentsRepository extends MongoRepository
 
     public function getNextClaimDate(): ?\DateTime
     {
-        $result = $this->appointments->aggregate([
+        $result = $this->completedAppointments->aggregate([
             self::getClaimsLookup(),
             ['$match' => [
                 'claims' => ['$size' => 0],
@@ -227,14 +230,6 @@ final class AppointmentsRepository extends MongoRepository
         return \count($appointments);
     }
 
-    private function setChargeId(Appointment $appointment, Charge $charge): void
-    {
-        $this->appointments->updateOne(
-            ['_id' => $appointment->getId()],
-            ['$set' => ['chargeId' => $charge->getChargeLine()]],
-        );
-    }
-
     public function setQbJournalEntry(Appointment $appointment, IPPJournalEntry $entry): void
     {
         $this->appointments->updateOne(
@@ -248,6 +243,14 @@ final class AppointmentsRepository extends MongoRepository
         $this->appointments->updateOne(
             ['_id' => $appointment->getId()],
             ['$set' => ['qbReversingJournalEntryId' => $entry->Id]],
+        );
+    }
+
+    private function setChargeId(Appointment $appointment, Charge $charge): void
+    {
+        $this->appointments->updateOne(
+            ['_id' => $appointment->getId()],
+            ['$set' => ['chargeId' => $charge->getChargeLine()]],
         );
     }
 

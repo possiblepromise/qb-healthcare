@@ -13,15 +13,14 @@ final class Appointment implements Persistable
     use BelongsToCompanyTrait;
 
     public function __construct(
-        /** @var numeric-string */
         private string $id,
         private Payer $payer,
         private \DateTime $serviceDate,
         private string $clientName,
         private int $units,
-        /** @var numeric-string */
         private string $charge,
         private ?\DateTime $dateBilled,
+        private bool $completed,
         private ?string $chargeId = null,
         private ?string $qbJournalEntryId = null,
         private ?string $qbReversingJournalEntryId = null
@@ -91,6 +90,7 @@ final class Appointment implements Persistable
             'units' => $this->units,
             'charge' => new Decimal128($this->charge),
             'dateBilled' => $this->dateBilled ? new UTCDateTime($this->dateBilled) : null,
+            'completed' => $this->completed,
         ]);
 
         if ($this->chargeId !== null) {
@@ -117,6 +117,7 @@ final class Appointment implements Persistable
         $this->units = $data['units'];
         $this->charge = ((string) $data['charge']);
         $this->dateBilled = $data['dateBilled'] ? $data['dateBilled']->toDateTime() : null;
+        $this->completed = $data['completed'];
         $this->chargeId = $data['chargeId'] ?? null;
         $this->qbJournalEntryId = $data['qbJournalEntryId'] ?? null;
         $this->qbReversingJournalEntryId = $data['qbReversingJournalEntryId'] ?? null;
