@@ -27,7 +27,7 @@ final class CreditMemosRepository
     /**
      * @param Charge[] $charges
      */
-    public function createContractualAdjustmentCreditFromCharges(string $claimId, array $charges): IPPCreditMemo
+    public function createContractualAdjustmentCreditFromCharges(string $billingId, array $charges): IPPCreditMemo
     {
         $lines = [];
 
@@ -36,12 +36,13 @@ final class CreditMemosRepository
         }
 
         $creditMemo = CreditMemo::create([
+            'AutoDocNumber' => true,
             'Line' => $lines,
             'CustomerRef' => [
                 'value' => $charges[0]->getPrimaryPaymentInfo()->getPayer()->getQbCustomerId(),
             ],
             'TxnDate' => $charges[0]->getPrimaryPaymentInfo()->getBilledDate()->format('Y-m-d'),
-            'PrivateNote' => $claimId,
+            'PrivateNote' => $billingId,
         ]);
 
         return $this->dataService->add($creditMemo);
@@ -93,6 +94,11 @@ final class CreditMemosRepository
         ]);
 
         $this->getDataService()->Update($updatedCreditMemo);
+    }
+
+    public function delete(IPPCreditMemo $creditMemo): void
+    {
+        $this->getDataService()->Delete($creditMemo);
     }
 
     private function createCreditMemoLineFromCharge(int $lineNum, Charge $charge): array

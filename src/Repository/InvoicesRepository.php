@@ -24,7 +24,7 @@ final class InvoicesRepository
     /**
      * @param Charge[] $charges
      */
-    public function createFromCharges(string $claimId, array $charges): IPPInvoice
+    public function createFromCharges(string $billingId, array $charges): IPPInvoice
     {
         if (empty($charges)) {
             throw new \RuntimeException('At least one charge must be passed to create an invoice.');
@@ -42,7 +42,7 @@ final class InvoicesRepository
         $invoice = $this->createInvoiceObject(
             customerRef: $charges[0]->getPrimaryPaymentInfo()->getPayer()->getQbCustomerId(),
             date: $charges[0]->getPrimaryPaymentInfo()->getBilledDate(),
-            memo: $claimId,
+            memo: $billingId,
             lines: $lines
         );
 

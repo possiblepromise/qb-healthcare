@@ -96,12 +96,6 @@ final class ChargesRepository extends MongoRepository
                     'billedAmount' => ['$sum' => '$billedAmount'],
                     'contractAmount' => ['$sum' => '$contractAmount'],
                     'billedDate' => ['$first' => '$primaryPaymentInfo.billedDate'],
-                    'paymentDate' => ['$first' => '$primaryPaymentInfo.paymentDate'],
-                    'payment' => ['$sum' => '$primaryPaymentInfo.payment'],
-                    'paymentRef' => ['$first' => '$primaryPaymentInfo.paymentRef'],
-                    'copay' => ['$sum' => '$primaryPaymentInfo.copay'],
-                    'coinsurance' => ['$sum' => '$primaryPaymentInfo.coinsurance'],
-                    'deductible' => ['$sum' => '$primaryPaymentInfo.deductible'],
                 ],
             ],
         ]);
@@ -118,13 +112,7 @@ final class ChargesRepository extends MongoRepository
             payer: $data['_id'],
             billedAmount: (string) $data['billedAmount'],
             contractAmount: (string) $data['contractAmount'],
-            billedDate: $data['billedDate']->toDateTime(),
-            paymentDate: $data['paymentDate']?->toDateTime(),
-            payment: $data['payment'] ? (string) $data['payment'] : null,
-            paymentRef: $data['paymentRef'],
-            copay: (string) $data['copay'],
-            coinsurance: (string) $data['coinsurance'],
-            deductible: (string) $data['deductible']
+            billedDate: $data['billedDate']->toDateTime()
         );
     }
 
@@ -133,7 +121,7 @@ final class ChargesRepository extends MongoRepository
      *
      * @return Charge[]
      */
-    public function getClaimCharges(string $client, string $payer, \DateTimeImmutable $startDate, \DateTimeImmutable $endDate, array $charges = []): array
+    public function getClaimCharges(string $client, string $payer, \DateTimeInterface $startDate, \DateTimeInterface $endDate, array $charges = []): array
     {
         $result = $this->charges->aggregate([
             self::getClaimsLookup(),
@@ -272,8 +260,8 @@ final class ChargesRepository extends MongoRepository
     private static function getClaimQuery(
         string $client,
         string $payer,
-        \DateTimeImmutable $startDate,
-        \DateTimeImmutable $endDate,
+        \DateTimeInterface $startDate,
+        \DateTimeInterface $endDate,
         array $charges = []
     ): array {
         if ($charges) {

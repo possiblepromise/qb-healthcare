@@ -35,15 +35,17 @@ final class ClaimsRepository extends MongoRepository
     public function createClaim(
         string $claimId,
         string $fileId,
+        string $billingId,
         $invoice,
         $creditMemo,
         array $charges
-    ): void {
+    ): Claim {
         Assert::allIsInstanceOf($charges, Charge::class);
 
         $claim = new Claim(
             id: $claimId,
             fileId: $fileId,
+            billingId: $billingId,
             status: ClaimStatus::processed,
             qbInvoiceId: $invoice->Id,
             qbCreditMemoIds: [$creditMemo->Id],
@@ -53,6 +55,8 @@ final class ClaimsRepository extends MongoRepository
         $claim->setQbCompanyId($this->qb->getActiveCompany()->realmId);
 
         $this->claimData->insertOne($claim);
+
+        return $claim;
     }
 
     public function findOneByCharges(FilterableArray $charges): ?Claim

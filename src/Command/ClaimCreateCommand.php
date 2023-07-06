@@ -109,20 +109,24 @@ final class ClaimCreateCommand extends Command
             return Command::INVALID;
         }
 
-        /** @var numeric-string[] $selectedCharges */
+        $io->definitionList(
+            'Claim Summary',
+            ['Claim ID' => $hcfa->claimId],
+            ['Payer' => $summary->getPayer()],
+            ['Billed date' => $hcfa->billedDate->format('m/d/Y')],
+            ['From' => $hcfa->fromDate->format('m/d/Y')],
+            ['To' => $hcfa->toDate->format('m/d/Y')],
+            ['Client' => $client],
+            ['Charge' => $fmt->formatCurrency((float) $hcfa->total, 'USD')]
+        );
+
+        $billingId = $io->ask('Billing ID', null, self::validateBillingId(...));
+
+        /** @var string[] $selectedCharges */
         $selectedCharges = [];
 
         if (bccomp($summary->getBilledAmount(), $hcfa->total, 2) !== 0) {
             $io->caution('The total of the provided claim file does not match the total of the matched charges.');
-
-            $io->definitionList(
-                ['Payer' => $summary->getPayer()],
-                ['Billed date' => $hcfa->billedDate->format('m/d/Y')],
-                ['Client' => $client],
-                ['From' => $hcfa->fromDate->format('m/d/Y')],
-                ['To' => $hcfa->toDate->format('m/d/Y')],
-                ['Total' => $fmt->formatCurrency((float) $hcfa->total, 'USD')]
-            );
 
             $io->text('Please enter the details for the claim charges so they can be matched.');
             $io->newLine();
@@ -133,19 +137,6 @@ final class ClaimCreateCommand extends Command
             \assert($summary !== null);
         }
 
-        $io->definitionList(
-            'Claim Summary',
-            ['Claim ID' => $hcfa->claimId],
-            ['Date' => $hcfa->billedDate->format('m/d/Y')],
-            ['Payer' => $summary->getPayer()],
-            ['Billed amount' => $fmt->formatCurrency((float) $summary->getBilledAmount(), 'USD')],
-            ['Contracted amount' => $fmt->formatCurrency((float) $summary->getContractAmount(), 'USD')],
-            ['Contractual adjustment' => $fmt->formatCurrency((float) $summary->getContractualAdjustment(), 'USD')],
-            ['Coinsurance' => $fmt->formatCurrency((float) $summary->getCoinsurance(), 'USD')],
-            ['Total discount' => $fmt->formatCurrency((float) $summary->getTotalDiscount(), 'USD')],
-            ['Total' => $fmt->formatCurrency((float) $summary->getTotal(), 'USD')]
-        );
-
         $charges = $this->charges->getClaimCharges($client, $hcfa->payerId, $hcfa->fromDate, $hcfa->toDate, $selectedCharges);
 
         $io->section('Claim Charges');
@@ -155,7 +146,7 @@ final class ClaimCreateCommand extends Command
         foreach ($charges as $charge) {
             $table[] = [
                 $charge->getServiceDate()->format('Y-m-d'),
-                $this->items->get($charge->getPrimaryPaymentInfo()->getPayer()->getServices()[0]->getQbItemId())->Name,
+                $this->items->get($charge->getService()->getQbItemId())->Name,
                 $charge->getBilledUnits(),
                 $fmt->formatCurrency((float) $charge->getService()->getRate(), 'USD'),
                 $fmt->formatCurrency((float) $charge->getBilledAmount(), 'USD'),
@@ -165,6 +156,13 @@ final class ClaimCreateCommand extends Command
         $io->table(
             ['Date', 'Service', 'Billed Units', 'Rate', 'Total'],
             $table
+        );
+
+        $io->definitionList(
+            'Totals',
+            ['Billed' => $fmt->formatCurrency((float) $summary->getBilledAmount(), 'USD')],
+            ['Contracted' => $fmt->formatCurrency((float) $summary->getContractAmount(), 'USD')],
+            ['Adjustments' => $fmt->formatCurrency((float) $summary->getContractualAdjustment(), 'USD')],
         );
 
         $io->text('If this looks good, this claim will be imported into QuickBooks.');
@@ -186,13 +184,27 @@ final class ClaimCreateCommand extends Command
 
         $this->validateDefaultPaymentTermSet($io);
 
-        $invoice = $this->invoices->createFromCharges($hcfa->claimId, $charges);
+        $invoice = $this->invoices->createFromCharges($billingId, $charges);
+
+        $io->text(sprintf(
+            'Created invoice %s for %s.',
+            $invoice->DocNumber,
+            $fmt->formatCurrency((float) $invoice->TotalAmt, 'USD')
+        ));
 
         // Ensure we have the Contractual Adjustment item
         $this->validateContractualAdjustmentItemSet($io);
 
         try {
-            $creditMemo = $this->creditMemos->createContractualAdjustmentCreditFromCharges($hcfa->claimId, $charges);
+            $creditMemo = $this->creditMemos->createContractualAdjustmentCreditFromCharges($billingId, $charges);
+
+            $io->text(
+                sprintf(
+                    'Created credit memo %s for %s.',
+                    $creditMemo->DocNumber,
+                    $fmt->formatCurrency((float) $creditMemo->TotalAmt, 'USD')
+                )
+            );
         } catch (ServiceException $e) {
             $this->invoices->delete($invoice);
             $io->error($e->getMessage());
@@ -200,21 +212,30 @@ final class ClaimCreateCommand extends Command
             return Command::FAILURE;
         }
 
-        $this->claims->createClaim(
-            $hcfa->claimId,
-            $hcfa->fileId,
-            $invoice,
-            $creditMemo,
-            $charges
-        );
+        try {
+            $claim = $this->claims->createClaim(
+                $hcfa->claimId,
+                $hcfa->fileId,
+                $billingId,
+                $invoice,
+                $creditMemo,
+                $charges
+            );
+        } catch (\Exception $e) {
+            $this->invoices->delete($invoice);
+            $this->creditMemos->delete($creditMemo);
+            $io->error($e->getMessage());
 
-        $io->success(sprintf('Claim %s has been processed successfully.', $hcfa->claimId));
+            return Command::FAILURE;
+        }
+
+        $io->success(sprintf('Claim %s has been processed successfully.', $claim->getBillingId()));
 
         return Command::SUCCESS;
     }
 
     /**
-     * @return numeric-string[]
+     * @return string[]
      */
     private function selectClaimCharges(string $client, HcfaInfo $hcfa, SymfonyStyle $io): array
     {
@@ -241,6 +262,9 @@ final class ClaimCreateCommand extends Command
                     $io->error('No charges matched that billing code. Please try again.');
 
                     continue;
+                }
+                if (\count($selected) > 1) {
+                    throw new \RuntimeException('More than one charge matched that billing code.');
                 }
             }
 
@@ -294,6 +318,15 @@ final class ClaimCreateCommand extends Command
         }
 
         return $date->modify('00:00:00');
+    }
+
+    private static function validateBillingId(string $value): string
+    {
+        if (preg_match('/^IN\d{8}$/', $value) === 0) {
+            throw new \RuntimeException('Invalid billing ID.');
+        }
+
+        return $value;
     }
 
     private static function validateAppointments(array $charges, array $unbilledAppointments): void
