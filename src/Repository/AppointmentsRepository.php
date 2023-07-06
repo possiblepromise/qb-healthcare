@@ -92,13 +92,6 @@ final class AppointmentsRepository extends MongoRepository
         return self::getArrayFromResult($result);
     }
 
-    public function findByChargeId(string $chargeId): ?Appointment
-    {
-        return $this->appointments->findOne([
-            'chargeId' => $chargeId,
-        ]);
-    }
-
     public function findMatches(): int
     {
         $charges = $this->charges->findWithoutAppointments();
