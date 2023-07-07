@@ -1,5 +1,7 @@
 <?php
 
+/** @noinspection PhpUnused */
+
 declare(strict_types=1);
 
 namespace PossiblePromise\QbHealthcare\Command;
@@ -14,10 +16,10 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
 #[AsCommand(
-    name: 'appointment:get-uncompleted',
-    description: 'Gets the total of all uncompleted appointments as of the given date.'
+    name: 'appointment:get-incomplete',
+    description: 'Gets the total of all incomplete appointments as of the given date.'
 )]
-final class AppointmentGetUncompleted extends Command
+final class AppointmentGetIncomplete extends Command
 {
     public function __construct(
         private AppointmentsRepository $appointments,
@@ -29,7 +31,7 @@ final class AppointmentGetUncompleted extends Command
     protected function configure(): void
     {
         $this
-            ->setHelp('Allows you to retrieve the total of all uncompleted appointments as of a given date.')
+            ->setHelp('Allows you to retrieve the total of all incomplete appointments as of a given date.')
             ->addArgument('endDate', InputArgument::REQUIRED, 'The date as of which to fetch unbilled appointments.')
         ;
     }
@@ -38,13 +40,13 @@ final class AppointmentGetUncompleted extends Command
     {
         $io = new SymfonyStyle($input, $output);
 
-        $io->title('Uncompleted Appointments');
+        $io->title('Incomplete Appointments');
 
         $date = new \DateTime($input->getArgument('endDate'));
 
-        $uncompletedAppointments = $this->appointments->findUncompletedAsOf($date);
+        $incompleteAppointments = $this->appointments->findIncompleteAsOf($date);
 
-        if (empty($uncompletedAppointments)) {
+        if (empty($incompleteAppointments)) {
             $io->success('There are currently no uncompleted appointments.');
 
             return Command::SUCCESS;
@@ -62,7 +64,7 @@ final class AppointmentGetUncompleted extends Command
         $fmt = new \NumberFormatter('en_US', \NumberFormatter::CURRENCY);
         $qbServices = [];
 
-        foreach ($uncompletedAppointments as $appointment) {
+        foreach ($incompleteAppointments as $appointment) {
             $sum = bcadd($sum, $appointment->getCharge(), 2);
 
             $itemId = $appointment->getPayer()->getServices()[0]->getQbItemId();
@@ -80,9 +82,9 @@ final class AppointmentGetUncompleted extends Command
         }
 
         $io->text(sprintf(
-            'As of %s, there were %d uncompleted appointments for a total of %s.',
+            'As of %s, there were %d incomplete appointments for a total of %s.',
             $date->format('Y-m-d'),
-            \count($uncompletedAppointments),
+            \count($incompleteAppointments),
             $fmt->formatCurrency((float) $sum, 'USD')
         ));
         $io->newLine();

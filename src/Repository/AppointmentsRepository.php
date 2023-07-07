@@ -147,7 +147,7 @@ final class AppointmentsRepository extends MongoRepository
     /**
      * @return Appointment[]
      */
-    public function findUncompletedAsOf(\DateTimeInterface $date): array
+    public function findIncompleteAsOf(\DateTimeInterface $date): array
     {
         $result = $this->appointments->aggregate([
             ['$match' => [
