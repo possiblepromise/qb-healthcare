@@ -105,7 +105,7 @@ final class PaymentCreateCommand extends Command
         $providerAdjustmentAmount = '0.00';
 
         try {
-            while (bccomp($paymentTotal, $paymentAmount, 2) === -1) {
+            while (bccomp($paymentTotal, $paymentAmount, 2) !== 0) {
                 $claim = $this->processClaim($paymentRef, $depositDate, $era835);
 
                 if ($claim === null) {
