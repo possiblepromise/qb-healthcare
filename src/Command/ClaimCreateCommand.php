@@ -120,7 +120,7 @@ final class ClaimCreateCommand extends Command
             ['Charge' => $fmt->formatCurrency((float) $hcfa->total, 'USD')]
         );
 
-        $billingId = $io->ask('Billing ID', null, self::validateBillingId(...));
+        $billingId = $io->ask('Billing ID', null, $this->validateBillingId(...));
 
         /** @var string[] $selectedCharges */
         $selectedCharges = [];
@@ -320,10 +320,15 @@ final class ClaimCreateCommand extends Command
         return $date->modify('00:00:00');
     }
 
-    private static function validateBillingId(string $value): string
+    private function validateBillingId(string $value): string
     {
         if (preg_match('/^IN\d{8}$/', $value) === 0) {
             throw new \RuntimeException('Invalid billing ID.');
+        }
+
+        $claim = $this->claims->findOneByBillingId($value);
+        if ($claim !== null) {
+            throw new \RuntimeException('That billing ID has already been used.');
         }
 
         return $value;

@@ -118,4 +118,11 @@ final class ClaimsRepository extends MongoRepository
 
         return FilterableArray::fromCursor($result);
     }
+
+    public function findOneByBillingId(string $billingId): ?Claim
+    {
+        return $this->claims->findOne([
+            'billingId' => $billingId,
+        ]);
+    }
 }
