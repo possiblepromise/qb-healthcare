@@ -140,7 +140,7 @@ final class InvoicesRepository
         ?\DateTimeInterface $date,
         string $memo,
         array $lines
-    ): mixed {
+    ): IPPInvoice {
         return Invoice::create([
             'Line' => $lines,
             'CustomerRef' => [
