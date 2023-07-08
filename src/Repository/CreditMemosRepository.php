@@ -106,11 +106,13 @@ final class CreditMemosRepository
         $service = $charge->getPrimaryPaymentInfo()->getPayer()->getServices()[0];
         $quantity = $charge->getBilledUnits();
         $unitPrice = bcsub($service->getRate(), $service->getContractRate(), 2);
-        \assert(bccomp(
-            bcmul((string) $quantity, $unitPrice, 2),
-            bcsub($charge->getBilledAmount(), $charge->getContractAmount(), 2),
-            2
-        ) === 0);
+        \assert(
+            bccomp(
+                bcmul((string)$quantity, $unitPrice, 2),
+                bcsub($charge->getBilledAmount(), $charge->getContractAmount(), 2),
+                2
+            ) === 0
+        );
 
         return self::createCreditMemoLine(
             $lineNum,
