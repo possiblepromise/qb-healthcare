@@ -18,6 +18,7 @@ final class Company implements Persistable
         public ?string $contractualAdjustmentItem = null,
         public ?string $coinsuranceItem = null,
         public ?string $interestItem = null,
+        public ?string $originationFeeItem = null,
         public bool $active = true
     ) {
     }
@@ -52,6 +53,10 @@ final class Company implements Persistable
             $data['interestItem'] = $this->interestItem;
         }
 
+        if ($this->originationFeeItem) {
+            $data['originationFeeItem'] = $this->originationFeeItem;
+        }
+
         return $data;
     }
 
@@ -66,6 +71,7 @@ final class Company implements Persistable
         $this->contractualAdjustmentItem = $data['contractualAdjustmentItem'] ?? null;
         $this->coinsuranceItem = $data['coinsuranceItem'] ?? null;
         $this->interestItem = $data['interestItem'] ?? null;
+        $this->originationFeeItem = $data['originationFeeItem'] ?? null;
         $this->active = $data['active'] ?? true;
     }
 }

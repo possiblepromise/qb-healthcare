@@ -6,6 +6,8 @@ namespace PossiblePromise\QbHealthcare\Command;
 
 use PossiblePromise\QbHealthcare\Entity\Charge;
 use PossiblePromise\QbHealthcare\Entity\Claim;
+use PossiblePromise\QbHealthcare\Entity\ProviderAdjustment;
+use PossiblePromise\QbHealthcare\Entity\ProviderAdjustmentType;
 use PossiblePromise\QbHealthcare\Era835Reader;
 use PossiblePromise\QbHealthcare\Exception\PaymentCreationException;
 use PossiblePromise\QbHealthcare\QuickBooks;
@@ -102,7 +104,7 @@ final class PaymentCreateCommand extends Command
         $paymentTotal = '0.00';
         /** @var Claim[] $claims */
         $claims = [];
-        $providerAdjustmentAmount = '0.00';
+        $providerAdjustments = [];
 
         try {
             while (bccomp($paymentTotal, $paymentAmount, 2) !== 0) {
@@ -110,8 +112,9 @@ final class PaymentCreateCommand extends Command
 
                 if ($claim === null) {
                     // No more claims so there must be another adjustment
-                    $providerAdjustmentAmount = self::processProviderAdjustments($era835);
-                    $paymentTotal = bcadd($paymentTotal, $providerAdjustmentAmount, 2);
+                    $providerAdjustment = self::processProviderAdjustment($era835);
+                    $paymentTotal = bcadd($paymentTotal, $providerAdjustment->getAmount(), 2);
+                    $providerAdjustments[] = $providerAdjustment;
                 } else {
                     $paymentTotal = bcadd($paymentTotal, $claim->getPaymentInfo()->getPayment(), 2);
                     $claims[] = $claim;
@@ -133,14 +136,14 @@ final class PaymentCreateCommand extends Command
             return Command::FAILURE;
         }
 
-        self::showPaidClaims($claims, $providerAdjustmentAmount, $io);
+        self::showPaidClaims($claims, $providerAdjustments, $io);
 
         if (!$io->confirm('Continue?', false)) {
             return Command::SUCCESS;
         }
 
         try {
-            $this->syncToQb($paymentRef, $depositDate, $claims, $providerAdjustmentAmount, $io);
+            $this->syncToQb($paymentRef, $depositDate, $claims, $providerAdjustments, $io);
         } catch (PaymentCreationException $e) {
             $io->error($e->getMessage());
 
@@ -315,7 +318,7 @@ final class PaymentCreateCommand extends Command
         return [$contractualAdjustment, $coinsurance];
     }
 
-    private static function processProviderAdjustments(Era835Reader $era835): string
+    private static function processProviderAdjustment(Era835Reader $era835): ProviderAdjustment
     {
         $providerAdjustmentReason = $era835->read('PLB03-01');
         if ($providerAdjustmentReason === null) {
@@ -323,15 +326,28 @@ final class PaymentCreateCommand extends Command
                 'No provider adjustment found but payment total is not adding up.'
             );
         }
-        if ($providerAdjustmentReason !== 'L6') {
-            throw new PaymentCreationException(
-                sprintf(
-                    'Do not know how to handle provider adjustment reason %s.',
-                    $providerAdjustmentReason
-                )
-            );
-        }
 
-        return bcmul($era835->read('PLB04'), '-1', 2);
+        // Must reverse, because in the PLB segment, a negative amount represents a payment,
+        // and a positive amount represents a withholding
+        $amount = bcmul($era835->read('PLB04'), '-1', 2);
+
+        // Go to the next line so we can pick up other PLB segments
+        $era835->next();
+
+        switch ($providerAdjustmentReason) {
+            case 'L6':
+                return new ProviderAdjustment(ProviderAdjustmentType::interest, $amount);
+
+            case 'AH':
+                return new ProviderAdjustment(ProviderAdjustmentType::origination_fee, $amount);
+
+            default:
+                throw new PaymentCreationException(
+                    sprintf(
+                        'Do not know how to handle provider adjustment reason %s.',
+                        $providerAdjustmentReason
+                    )
+                );
+        }
     }
 }

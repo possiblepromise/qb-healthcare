@@ -57,9 +57,13 @@ trait PaymentCreateTrait
         }
     }
 
+    /**
+     * @param Claim[]              $claims
+     * @param ProviderAdjustment[] $providerAdjustments
+     */
     private static function showPaidClaims(
         array $claims,
-        string $providerAdjustmentAmount,
+        array $providerAdjustments,
         SymfonyStyle $io
     ): void {
         $fmt = new \NumberFormatter('en_US', \NumberFormatter::CURRENCY);
@@ -67,7 +71,6 @@ trait PaymentCreateTrait
         $table = [];
         $paymentTotal = '0.00';
 
-        /** @var Claim $claim */
         foreach ($claims as $claim) {
             $table[] = [
                 $claim->getBillingId(),
@@ -80,16 +83,16 @@ trait PaymentCreateTrait
             $paymentTotal = bcadd($paymentTotal, $claim->getPaymentInfo()->getPayment(), 2);
         }
 
-        if (bccomp($providerAdjustmentAmount, '0.00', 2) === 1) {
+        foreach ($providerAdjustments as $providerAdjustment) {
             $table[] = [
-                'Interest owed',
+                self::getReadableProviderAdjustmentType($providerAdjustment->getType()),
                 '',
                 '',
                 '',
-                $fmt->formatCurrency((float) $providerAdjustmentAmount, 'USD'),
+                $fmt->formatCurrency((float) $providerAdjustment->getAmount(), 'USD'),
             ];
 
-            $paymentTotal = bcadd($paymentTotal, $providerAdjustmentAmount, 2);
+            $paymentTotal = bcadd($paymentTotal, $providerAdjustment->getAmount(), 2);
         }
 
         $table[] = [
@@ -104,6 +107,14 @@ trait PaymentCreateTrait
             ['Billing ID', 'Billed Date', 'Dates', 'Client', 'Paid'],
             $table
         );
+    }
+
+    private static function getReadableProviderAdjustmentType(ProviderAdjustmentType $type): string
+    {
+        return match ($type) {
+            ProviderAdjustmentType::interest => 'Interest owed',
+            ProviderAdjustmentType::origination_fee => 'Origination fee',
+        };
     }
 
     private function validateCoinsuranceItemSet(SymfonyStyle $io): void
@@ -143,6 +154,28 @@ trait PaymentCreateTrait
                 static fn (IPPItem $item) => $item->FullyQualifiedName === $name
             );
             $this->qb->getActiveCompany()->interestItem = $interestItem->Id;
+            $this->qb->save();
+        }
+    }
+
+    private function validateOriginationFeeItemSet(SymfonyStyle $io): void
+    {
+        if ($this->qb->getActiveCompany()->originationFeeItem === null) {
+            $items = $this->items->findAllNotIn([
+                ...$this->payers->findAllServiceItemIds(),
+                $this->qb->getActiveCompany()->contractualAdjustmentItem,
+                $this->qb->getActiveCompany()->coinsuranceItem,
+                $this->qb->getActiveCompany()->interestItem,
+            ]);
+            $io->text('Please select the item for origination fees.');
+            $name = $io->choice(
+                'Origination fee item',
+                $items->map(static fn (IPPItem $item) => $item->FullyQualifiedName)
+            );
+            $originationFeeItem = $items->selectOne(
+                static fn (IPPItem $item) => $item->FullyQualifiedName === $name
+            );
+            $this->qb->getActiveCompany()->originationFeeItem = $originationFeeItem->Id;
             $this->qb->save();
         }
     }
@@ -282,43 +315,53 @@ trait PaymentCreateTrait
     }
 
     /**
-     * @return ProviderAdjustment[]
+     * @param ProviderAdjustment[] $providerAdjustments
      */
     private function createProviderAdjustments(
         string $paymentRef,
         \DateTimeInterface $paymentDate,
         Payer $payer,
-        string $providerAdjustmentAmount,
+        array $providerAdjustments,
         SymfonyStyle $io
-    ): array {
-        $invoice = $this->invoices->createFromProviderAdjustment(
-            $paymentRef,
-            $paymentDate,
-            $payer,
-            $providerAdjustmentAmount
-        );
+    ): void {
         $fmt = new \NumberFormatter('en_US', \NumberFormatter::CURRENCY);
-        $io->text(
-            sprintf(
-                'Created invoice %s for %s of interest.',
-                $invoice->DocNumber,
-                $fmt->formatCurrency((float) $invoice->TotalAmt, 'USD')
-            )
-        );
 
-        $adjustment = new ProviderAdjustment(
-            $invoice,
-            ProviderAdjustmentType::interest,
-        );
+        foreach ($providerAdjustments as $providerAdjustment) {
+            if (bccomp($providerAdjustment->getAmount(), '0.00', 2) === 1) {
+                $entity = $this->invoices->createFromProviderAdjustment($paymentRef, $paymentDate, $payer, $providerAdjustment);
+            } elseif (bccomp($providerAdjustment->getAmount(), '0.00', 2) === -1) {
+                $entity = $this->creditMemos->createFromProviderAdjustment($paymentRef, $paymentDate, $payer, $providerAdjustment);
+            } else {
+                throw new \RuntimeException('Provider adjustment is 0.');
+            }
 
-        return [$adjustment];
+            $io->text(sprintf(
+                self::getProviderAdjustmentCreationMessage($providerAdjustment),
+                $entity->DocNumber,
+                $fmt->formatCurrency((float) $entity->TotalAmt, 'USD')
+            ));
+
+            $providerAdjustment->setQbEntity($entity);
+        }
     }
 
+    private static function getProviderAdjustmentCreationMessage(ProviderAdjustment $providerAdjustment): string
+    {
+        return match ($providerAdjustment->getType()) {
+            ProviderAdjustmentType::interest => 'Created invoice %s for %s of interest.',
+            ProviderAdjustmentType::origination_fee => 'Created credit memo %s for a %s origination fee.',
+        };
+    }
+
+    /**
+     * @param Claim[]              $claims
+     * @param ProviderAdjustment[] $providerAdjustments
+     */
     private function syncToQb(
         string $paymentRef,
         \DateTimeInterface $depositDate,
         array $claims,
-        string $providerAdjustmentAmount,
+        array $providerAdjustments,
         SymfonyStyle $io
     ): void {
         $this->validateCoinsuranceItemSet($io);
@@ -329,18 +372,19 @@ trait PaymentCreateTrait
             $this->syncAdjustmentsToQb($claim, $io);
         }
 
-        $adjustments = [];
-        if (bccomp($providerAdjustmentAmount, '0.00', 2) !== 0) {
+        if (!empty($providerAdjustments)) {
             $this->validateInterestItemSet($io);
-            $adjustments = $this->createProviderAdjustments(
+            $this->validateOriginationFeeItemSet($io);
+
+            $this->createProviderAdjustments(
                 $paymentRef,
                 $depositDate,
                 $claims[0]->getPaymentInfo()->getPayer(),
-                $providerAdjustmentAmount,
+                $providerAdjustments,
                 $io
             );
         }
 
-        $this->payments->create($paymentRef, $claims, $adjustments);
+        $this->payments->create($paymentRef, $claims, $providerAdjustments);
     }
 }

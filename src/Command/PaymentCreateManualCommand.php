@@ -6,6 +6,8 @@ namespace PossiblePromise\QbHealthcare\Command;
 
 use PossiblePromise\QbHealthcare\Entity\Charge;
 use PossiblePromise\QbHealthcare\Entity\Claim;
+use PossiblePromise\QbHealthcare\Entity\ProviderAdjustment;
+use PossiblePromise\QbHealthcare\Entity\ProviderAdjustmentType;
 use PossiblePromise\QbHealthcare\Exception\PaymentCreationException;
 use PossiblePromise\QbHealthcare\QuickBooks;
 use PossiblePromise\QbHealthcare\Repository\ChargesRepository;
@@ -56,8 +58,6 @@ final class PaymentCreateManualCommand extends Command
 
         $io->title('Create Payment');
 
-        $fmt = new \NumberFormatter('en_US', \NumberFormatter::CURRENCY);
-
         /** @var \DateTimeImmutable $depositDate */
         $depositDate = $io->ask('Payment date', null, self::validateDate(...));
         $paymentRef = $io->ask('Check number', null, self::validateRequired(...));
@@ -66,45 +66,37 @@ final class PaymentCreateManualCommand extends Command
         $paymentTotal = '0.00';
         /** @var Claim[] $claims */
         $claims = [];
-        $providerAdjustmentAmount = '0.00';
 
         try {
-            while (bccomp($paymentTotal, $paymentAmount, 2) === -1) {
+            do {
                 $claim = $this->processClaim($paymentRef, $depositDate, $io);
 
                 $paymentTotal = bcadd($paymentTotal, $claim->getPaymentInfo()->getPayment(), 2);
                 $claims[] = $claim;
-
-                if (bccomp($paymentTotal, $paymentAmount, 2) === -1 && !$io->confirm('Is there another claim to add?')) {
-                    // No more claims so there must be another adjustment
-                    $providerAdjustmentAmount = self::processProviderAdjustments($io);
-                    $paymentTotal = bcadd($paymentTotal, $providerAdjustmentAmount, 2);
-                }
-            }
+            } while ($io->confirm('Is there another claim to add?'));
         } catch (PaymentCreationException $e) {
             $io->error($e->getMessage());
 
             return Command::FAILURE;
         }
 
-        if (bccomp($paymentTotal, $paymentAmount, 2) === 1) {
-            $io->error(sprintf(
-                'Claims add up to %s, but %s was expected.',
-                $fmt->formatCurrency((float) $paymentTotal, 'USD'),
-                $fmt->formatCurrency((float) $paymentAmount, 'USD')
-            ));
+        // Now capture any provider level adjustments
+        $providerAdjustments = [];
 
-            return Command::FAILURE;
+        while (bccomp($paymentTotal, $paymentAmount, 2) !== 0) {
+            $providerAdjustment = self::processProviderAdjustment($io);
+            $paymentTotal = bcadd($paymentTotal, $providerAdjustment->getAmount(), 2);
+            $providerAdjustments[] = $providerAdjustment;
         }
 
-        self::showPaidClaims($claims, $providerAdjustmentAmount, $io);
+        self::showPaidClaims($claims, $providerAdjustments, $io);
 
         if (!$io->confirm('Continue?', false)) {
             return Command::SUCCESS;
         }
 
         try {
-            $this->syncToQb($paymentRef, $depositDate, $claims, $providerAdjustmentAmount, $io);
+            $this->syncToQb($paymentRef, $depositDate, $claims, $providerAdjustments, $io);
         } catch (PaymentCreationException $e) {
             $io->error($e->getMessage());
 
@@ -185,14 +177,6 @@ final class PaymentCreateManualCommand extends Command
             );
         }
 
-        if (bccomp($totalBilled, $claim->getBilledAmount(), 2) !== 0) {
-            throw new PaymentCreationException(sprintf(
-                'Charges add up to %s, but %s was expected.',
-                $fmt->formatCurrency((float) $totalBilled, 'USD'),
-                $fmt->formatCurrency((float) $claim->getBilledAmount(), 'USD')
-            ));
-        }
-
         // Refresh claim to get updated numbers
         return $this->claims->get($claim->getId());
     }
@@ -252,12 +236,22 @@ final class PaymentCreateManualCommand extends Command
         return $charge;
     }
 
-    private static function processProviderAdjustments(SymfonyStyle $io): string
+    private static function processProviderAdjustment(SymfonyStyle $io): ProviderAdjustment
     {
         if ($io->ask('Is there a provider level adjustment?') === false) {
             throw new PaymentCreationException('Payment total is not adding up. Please try again.');
         }
 
-        return $io->ask('Provider adjustment amount', null, self::validateAmount(...));
+        $type = $io->choice('Adjustment type', [
+            self::getReadableProviderAdjustmentType(ProviderAdjustmentType::interest),
+            self::getReadableProviderAdjustmentType(ProviderAdjustmentType::origination_fee),
+        ]);
+
+        $amount = $io->ask('Adjustment amount', null, self::validateAmount(...));
+
+        return new ProviderAdjustment(
+            ProviderAdjustmentType::from($type),
+            $amount
+        );
     }
 }

@@ -6,6 +6,8 @@ namespace PossiblePromise\QbHealthcare\Repository;
 
 use PossiblePromise\QbHealthcare\Entity\Charge;
 use PossiblePromise\QbHealthcare\Entity\Payer;
+use PossiblePromise\QbHealthcare\Entity\ProviderAdjustment;
+use PossiblePromise\QbHealthcare\Entity\ProviderAdjustmentType;
 use PossiblePromise\QbHealthcare\QuickBooks;
 use QuickBooksOnline\API\Data\IPPInvoice;
 use QuickBooksOnline\API\Data\IPPLine;
@@ -50,19 +52,27 @@ final class InvoicesRepository
         return $this->getDataService()->add($invoice);
     }
 
-    public function createFromProviderAdjustment(string $paymentRef, \DateTimeInterface $paymentDate, Payer $payer, string $adjustmentAmount): IPPInvoice
+    public function createFromProviderAdjustment(string $paymentRef, \DateTimeInterface $paymentDate, Payer $payer, ProviderAdjustment $providerAdjustment): IPPInvoice
     {
-        if ($this->qb->getActiveCompany()->interestItem === null) {
-            throw new \RuntimeException('The item to use for interest payments has not been set.');
+        switch ($providerAdjustment->getType()) {
+            case ProviderAdjustmentType::interest:
+                $itemId = $this->qb->getActiveCompany()->interestItem;
+                if ($itemId === null) {
+                    throw new \RuntimeException('The item to use for interest payments has not been set.');
+                }
+                break;
+
+            default:
+                throw new \InvalidArgumentException('Cannot handle type: ' . $providerAdjustment->getType()->value);
         }
 
         $line = self::createInvoiceLine(
             lineNum: 1,
             serviceDate: null,
-            itemId: $this->qb->getActiveCompany()->interestItem,
+            itemId: $itemId,
             description: null,
             quantity: 1,
-            unitPrice: $adjustmentAmount
+            unitPrice: $providerAdjustment->getAmount()
         );
 
         $invoice = $this->createInvoiceObject(
@@ -135,9 +145,14 @@ final class InvoicesRepository
         ]);
     }
 
+    /**
+     * @param IPPLine[] $lines
+     *
+     * @throws \Exception
+     */
     private function createInvoiceObject(
-        ?string $customerRef,
-        ?\DateTimeInterface $date,
+        string $customerRef,
+        \DateTimeInterface $date,
         string $memo,
         array $lines
     ): IPPInvoice {

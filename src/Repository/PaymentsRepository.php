@@ -13,7 +13,9 @@ use PossiblePromise\QbHealthcare\Entity\ProviderAdjustmentType;
 use PossiblePromise\QbHealthcare\QuickBooks;
 use QuickBooksOnline\API\Data\IPPCreditMemo;
 use QuickBooksOnline\API\Data\IPPInvoice;
+use QuickBooksOnline\API\Data\IPPLine;
 use QuickBooksOnline\API\Data\IPPPayment;
+use QuickBooksOnline\API\Facades\Line;
 use QuickBooksOnline\API\Facades\Payment;
 
 final class PaymentsRepository
@@ -58,12 +60,18 @@ final class PaymentsRepository
             }
         }
 
-        foreach ($providerAdjustments as $adjustment) {
-            $total = bcadd($total, $adjustment->getAmount(), 2);
+        foreach ($providerAdjustments as $providerAdjustment) {
+            $total = bcadd($total, $providerAdjustment->getAmount(), 2);
 
-            if ($adjustment->getType() === ProviderAdjustmentType::interest) {
-                $lines[] = self::createPaymentLine('Invoice', $adjustment->getQbEntityId(), $adjustment->getAmount());
+            $amount = $providerAdjustment->getAmount();
+            if (bccomp($amount, '0', 2) === -1) {
+                $amount = bcmul($amount, '-1', 2);
             }
+
+            $lines[] = match ($providerAdjustment->getType()) {
+                ProviderAdjustmentType::interest => self::createPaymentLine('Invoice', $providerAdjustment->getQbEntityId(), $amount),
+                ProviderAdjustmentType::origination_fee => self::createPaymentLine('CreditMemo', $providerAdjustment->getQbEntityId(), $amount),
+            };
         }
 
         $payment = Payment::create([
@@ -88,7 +96,7 @@ final class PaymentsRepository
         return $payment;
     }
 
-    private static function createPaymentLineFromInvoice(IPPInvoice $invoice): array
+    private static function createPaymentLineFromInvoice(IPPInvoice $invoice): IPPLine
     {
         return self::createPaymentLine(
             'Invoice',
@@ -97,7 +105,7 @@ final class PaymentsRepository
         );
     }
 
-    private static function createPaymentLineFromCreditMemo(IPPCreditMemo $creditMemo): array
+    private static function createPaymentLineFromCreditMemo(IPPCreditMemo $creditMemo): IPPLine
     {
         return self::createPaymentLine(
             'CreditMemo',
@@ -110,8 +118,8 @@ final class PaymentsRepository
         string $txnType,
         string $txnId,
         string $amount
-    ): array {
-        return [
+    ): IPPLine {
+        return Line::create([
             'Amount' => $amount,
             'LinkedTxn' => [
                 [
@@ -119,6 +127,6 @@ final class PaymentsRepository
                     'TxnType' => $txnType,
                 ],
             ],
-        ];
+        ]);
     }
 }
