@@ -78,6 +78,21 @@ final class JournalEntriesRepository
         return $result;
     }
 
+    public function deleteAccruedRevenueEntryFromAppointment(Appointment $appointment)
+    {
+        if ($appointment->getQbJournalEntryId() === null) {
+            throw new \RuntimeException(sprintf('Appointment %s does not have a journal entry to delete.', $appointment->getId()));
+        }
+        if ($appointment->getQbReversingJournalEntryId() !== null) {
+            throw new \RuntimeException(sprintf('Appointment %s already has a reversing journal entry.', $appointment->getId()));
+        }
+
+        $journalEntry = $this->dataService->FindById('JournalEntry', $appointment->getQbJournalEntryId());
+        $this->dataService->Delete($journalEntry);
+
+        return $journalEntry;
+    }
+
     private function createJournalEntryObject(
         string $docNumber,
         \DateTime $date,

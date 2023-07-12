@@ -357,8 +357,12 @@ final class ClaimCreateCommand extends Command
         }
     }
 
+    /**
+     * @param Appointment[] $unbilledAppointments
+     */
     private function createReversingJournalEntries(array $unbilledAppointments, SymfonyStyle $io): void
     {
+        /** @var Appointment[] $unbilledAppointments */
         $unbilledAppointments = (new FilterableArray($unbilledAppointments))->filter(
             static fn (Appointment $appointment) => $appointment->getQbJournalEntryId() !== null && $appointment->getQbReversingJournalEntryId() === null
         );
@@ -376,18 +380,37 @@ final class ClaimCreateCommand extends Command
         ));
 
         foreach ($unbilledAppointments as $appointment) {
-            $entry = $this->journalEntries->createReversingAccruedRevenueEntryFromAppointment($appointment);
-            $this->appointments->setQbReversingJournalEntry($appointment, $entry);
+            $firstDay = \DateTimeImmutable::createFromMutable($appointment->getDateBilled())
+                ->modify('first day of this month')
+            ;
 
-            $io->text(
-                sprintf(
-                    'Created journal entry %s for appointment %s on %s',
-                    $entry->DocNumber,
-                    $appointment->getId(),
-                    $appointment->getServiceDate()->format('Y-m-d')
-                )
-            );
+            if ($appointment->getServiceDate() >= $firstDay) {
+                $entry = $this->journalEntries->deleteAccruedRevenueEntryFromAppointment($appointment);
+                $this->appointments->deleteQbJournalEntry($appointment);
+
+                $io->text(
+                    sprintf(
+                        'Deleted journal entry %s for appointment %s on %s',
+                        $entry->DocNumber,
+                        $appointment->getId(),
+                        $appointment->getServiceDate()->format('Y-m-d')
+                    )
+                );
+            } else {
+                $entry = $this->journalEntries->createReversingAccruedRevenueEntryFromAppointment($appointment);
+                $this->appointments->setQbReversingJournalEntry($appointment, $entry);
+
+                $io->text(
+                    sprintf(
+                        'Created journal entry %s for appointment %s on %s',
+                        $entry->DocNumber,
+                        $appointment->getId(),
+                        $appointment->getServiceDate()->format('Y-m-d')
+                    )
+                );
+            }
         }
+
         $io->text('Done');
         $io->newLine();
     }

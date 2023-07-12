@@ -210,6 +210,30 @@ final class AppointmentsRepository extends MongoRepository
         return $record['dateBilled']->toDateTime();
     }
 
+    public function setQbJournalEntry(Appointment $appointment, IPPJournalEntry $entry): void
+    {
+        $this->appointments->updateOne(
+            ['_id' => $appointment->getId()],
+            ['$set' => ['qbJournalEntryId' => $entry->Id]],
+        );
+    }
+
+    public function setQbReversingJournalEntry(Appointment $appointment, IPPJournalEntry $entry): void
+    {
+        $this->appointments->updateOne(
+            ['_id' => $appointment->getId()],
+            ['$set' => ['qbReversingJournalEntryId' => $entry->Id]],
+        );
+    }
+
+    public function deleteQbJournalEntry(Appointment $appointment): void
+    {
+        $this->appointments->updateOne(
+            ['_id' => $appointment->getId()],
+            ['$set' => ['qbJournalEntryId' => null]],
+        );
+    }
+
     private function matchCharge(Charge $charge): int
     {
         $appointments = $this->findByChargeData(
@@ -246,22 +270,6 @@ final class AppointmentsRepository extends MongoRepository
         }
 
         return \count($appointments);
-    }
-
-    public function setQbJournalEntry(Appointment $appointment, IPPJournalEntry $entry): void
-    {
-        $this->appointments->updateOne(
-            ['_id' => $appointment->getId()],
-            ['$set' => ['qbJournalEntryId' => $entry->Id]],
-        );
-    }
-
-    public function setQbReversingJournalEntry(Appointment $appointment, IPPJournalEntry $entry): void
-    {
-        $this->appointments->updateOne(
-            ['_id' => $appointment->getId()],
-            ['$set' => ['qbReversingJournalEntryId' => $entry->Id]],
-        );
     }
 
     private function setChargeId(Appointment $appointment, Charge $charge): void
