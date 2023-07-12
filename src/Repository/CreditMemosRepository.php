@@ -141,7 +141,7 @@ final class CreditMemosRepository
         return $this->getDataService()->add($creditMemo);
     }
 
-    private function createCreditMemoLineFromCharge(int $lineNum, Charge $charge): array
+    private function createCreditMemoLineFromCharge(int $lineNum, Charge $charge): IPPLine
     {
         $service = $charge->getPrimaryPaymentInfo()->getPayer()->getServices()[0];
         $quantity = $charge->getBilledUnits();
