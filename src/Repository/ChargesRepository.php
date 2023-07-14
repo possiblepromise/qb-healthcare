@@ -10,6 +10,7 @@ use MongoDB\BSON\UTCDateTime;
 use MongoDB\Collection;
 use MongoDB\Driver\Cursor;
 use PossiblePromise\QbHealthcare\Database\MongoClient;
+use PossiblePromise\QbHealthcare\Edi\Edi837Claim;
 use PossiblePromise\QbHealthcare\Entity\Charge;
 use PossiblePromise\QbHealthcare\Entity\Claim;
 use PossiblePromise\QbHealthcare\Entity\PaymentInfo;
@@ -79,24 +80,33 @@ final class ChargesRepository extends MongoRepository
         return $imported;
     }
 
-    public function getSummary(
-        string $client,
-        string $payer,
-        \DateTimeImmutable $startDate,
-        \DateTimeImmutable $endDate,
-        array $charges = []
-    ): ?ClaimSummary {
+    public function getSummary(Edi837Claim $claim): ?ClaimSummary
+    {
+        $charges = $this->getClaimCharges($claim);
+        if (empty($charges)) {
+            return null;
+        }
+
+        $ids = array_map(
+            static fn (Charge $charge): string => $charge->getChargeLine(),
+            $charges
+        );
+
         /** @var Cursor $result */
         $result = $this->charges->aggregate([
             self::getClaimsLookup(),
-            ['$match' => self::getClaimQuery($client, $payer, $startDate, $endDate, $charges)],
-            [
-                '$group' => [
-                    '_id' => '$primaryPaymentInfo.payer.name',
-                    'billedAmount' => ['$sum' => '$billedAmount'],
-                    'contractAmount' => ['$sum' => '$contractAmount'],
-                    'billedDate' => ['$first' => '$primaryPaymentInfo.billedDate'],
-                ],
+            ['$match' => [
+                '_id' => ['$in' => $ids],
+            ]],
+            ['$group' => [
+                '_id' => '$primaryPaymentInfo.payer.name',
+                'clientName' => ['$first' => '$clientName'],
+                'billedAmount' => ['$sum' => '$billedAmount'],
+                'contractAmount' => ['$sum' => '$contractAmount'],
+                'billedDate' => ['$first' => '$primaryPaymentInfo.billedDate'],
+                'startDate' => ['$min' => '$serviceDate'],
+                'endDate' => ['$max' => '$serviceDate'],
+            ],
             ],
         ]);
 
@@ -110,52 +120,82 @@ final class ChargesRepository extends MongoRepository
 
         return new ClaimSummary(
             payer: $data['_id'],
+            client: $data['clientName'],
             billedAmount: (string) $data['billedAmount'],
             contractAmount: (string) $data['contractAmount'],
-            billedDate: $data['billedDate']->toDateTime()
+            billedDate: $data['billedDate']->toDateTime(),
+            startDate: $data['startDate']->toDateTime(),
+            endDate: $data['endDate']->toDateTime(),
+            charges: $charges
         );
     }
 
     /**
-     * @param numeric-string[] $charges
-     *
      * @return Charge[]
      */
-    public function getClaimCharges(string $client, string $payer, \DateTimeInterface $startDate, \DateTimeInterface $endDate, array $charges = []): array
+    public function getClaimCharges(Edi837Claim $claim): array
     {
-        $result = $this->charges->aggregate([
-            self::getClaimsLookup(),
-            ['$match' => self::getClaimQuery($client, $payer, $startDate, $endDate, $charges)],
-            ['$sort' => ['serviceDate' => 1, '_id' => 1]],
-        ]);
+        $charges = [];
+        $ids = [];
 
-        return self::getArrayFromResult($result);
-    }
+        foreach ($claim->charges as $charge) {
+            /** @var Cursor $result */
+            $result = $this->charges->aggregate([
+                self::getClaimsLookup(),
+                ['$match' => [
+                    'claims' => ['$size' => 0],
+                    'billedAmount' => new Decimal128($charge->billed),
+                    'billedUnits' => $charge->units,
+                    'serviceDate' => new UTCDateTime($charge->serviceDate),
+                    'clientName' => [
+                        '$regex' => new Regex("{$claim->clientLastName},? {$claim->clientFirstName}", 'i'),
+                    ],
+                    'primaryPaymentInfo.payer._id' => $claim->payerId,
+                    'primaryPaymentInfo.billedDate' => new UTCDateTime($claim->billedDate),
+                    'service._id' => $charge->billingCode,
+                ]],
+            ]);
 
-    public function findClient(string $lastName, string $firstName): ?string
-    {
-        /** @var Cursor $result */
-        $result = $this->charges->aggregate([
-            ['$match' => [
-                'clientName' => [
-                    '$regex' => new Regex("{$lastName},? {$firstName}", 'i'),
-                ],
-            ]],
-            ['$project' => [
-                'clientName' => true,
-            ]],
-        ]);
+            $selectedCharges = self::getArrayFromResult($result);
 
-        $result->next();
+            if (empty($selectedCharges)) {
+                continue;
+            }
 
-        if (!$result->valid()) {
-            return null;
+            if (\count($selectedCharges) > 1) {
+                throw new \RuntimeException('More than one charge matches the provided criteria.');
+            }
+
+            /** @var Charge $charge */
+            $charge = array_shift($selectedCharges);
+
+            if (\in_array($charge, $ids, true)) {
+                throw new \RuntimeException('Charge ' . $charge->getChargeLine() . ' has already been selected.');
+            }
+
+            $charges[] = $charge;
         }
 
-        /** @var array{clientName: string} $record */
-        $record = $result->current();
+        if (empty($charges)) {
+            return [];
+        }
 
-        return $record['clientName'];
+        if (\count($charges) !== \count($claim->charges)) {
+            throw new \RuntimeException('Not all charges could be matched.');
+        }
+
+        usort($charges, static function (Charge $a, Charge $b): int {
+            if ($a->getServiceDate() < $b->getServiceDate()) {
+                return -1;
+            }
+            if ($a->getServiceDate() > $b->getServiceDate()) {
+                return 1;
+            }
+
+            return bccomp($a->getChargeLine(), $b->getChargeLine());
+        });
+
+        return $charges;
     }
 
     /**
@@ -252,34 +292,5 @@ final class ChargesRepository extends MongoRepository
                 'as' => 'claims',
             ],
         ];
-    }
-
-    /**
-     * @param numeric-string[] $charges
-     */
-    private static function getClaimQuery(
-        string $client,
-        string $payer,
-        \DateTimeInterface $startDate,
-        \DateTimeInterface $endDate,
-        array $charges = []
-    ): array {
-        if ($charges) {
-            $query = [
-                '_id' => ['$in' => $charges],
-            ];
-        } else {
-            $query = [
-                'clientName' => $client,
-                'primaryPaymentInfo.payer._id' => $payer,
-                'serviceDate' => [
-                    '$gte' => new UTCDateTime($startDate),
-                    '$lte' => new UTCDateTime($endDate),
-                ],
-                'claims' => ['$size' => 0],
-            ];
-        }
-
-        return $query;
     }
 }

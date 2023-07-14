@@ -4,10 +4,11 @@ declare(strict_types=1);
 
 namespace PossiblePromise\QbHealthcare\Command;
 
+use PossiblePromise\QbHealthcare\Edi\Edi837Claim;
+use PossiblePromise\QbHealthcare\Edi\Edi837Reader;
 use PossiblePromise\QbHealthcare\Entity\Appointment;
 use PossiblePromise\QbHealthcare\Entity\Charge;
 use PossiblePromise\QbHealthcare\Exception\ClaimCreationException;
-use PossiblePromise\QbHealthcare\HcfaReader;
 use PossiblePromise\QbHealthcare\QuickBooks;
 use PossiblePromise\QbHealthcare\Repository\AppointmentsRepository;
 use PossiblePromise\QbHealthcare\Repository\ChargesRepository;
@@ -19,10 +20,8 @@ use PossiblePromise\QbHealthcare\Repository\JournalEntriesRepository;
 use PossiblePromise\QbHealthcare\Repository\PayersRepository;
 use PossiblePromise\QbHealthcare\Repository\TermsRepository;
 use PossiblePromise\QbHealthcare\Type\FilterableArray;
-use PossiblePromise\QbHealthcare\ValueObject\HcfaInfo;
 use QuickBooksOnline\API\Data\IPPItem;
 use QuickBooksOnline\API\Data\IPPTerm;
-use QuickBooksOnline\API\Exception\ServiceException;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
@@ -46,8 +45,7 @@ final class ClaimCreateCommand extends Command
         private CreditMemosRepository $creditMemos,
         private TermsRepository $terms,
         private PayersRepository $payers,
-        private QuickBooks $qb,
-        private HcfaReader $reader
+        private QuickBooks $qb
     ) {
         parent::__construct();
     }
@@ -56,7 +54,7 @@ final class ClaimCreateCommand extends Command
     {
         $this
             ->setHelp('Allows you to create a claim.')
-            ->addArgument('hcfa', InputArgument::OPTIONAL, 'HCFA file to read.')
+            ->addArgument('837', InputArgument::OPTIONAL, 'EDI 837 file to read.')
         ;
     }
 
@@ -73,71 +71,59 @@ final class ClaimCreateCommand extends Command
             return Command::SUCCESS;
         }
 
-        $file = $input->getArgument('hcfa');
+        $file = $input->getArgument('837');
         if ($file === null) {
             $io->success('The next claim is from ' . $nextClaim->format('Y-m-d'));
 
             return Command::SUCCESS;
         }
 
-        $hcfa = $this->reader->read($file);
+        $edi = new Edi837Reader($file);
+        $claims = $edi->process();
 
-        if ($hcfa->billedDate->format('Y-m-d') !== $nextClaim->format('Y-m-d')) {
-            $io->error(sprintf(
-                'Expecting a claim billed on %s, but this claim was billed on %s.',
-                $nextClaim->format('Y-m-d'),
-                $hcfa->billedDate->format('Y-m-d')
-            ));
+        try {
+            foreach ($claims as $claim) {
+                $this->processClaim($claim, $io);
+            }
+        } catch (\Exception $e) {
+            $io->error($e->getMessage());
 
-            return Command::INVALID;
+            return Command::FAILURE;
         }
 
-        $client = $this->charges->findClient($hcfa->lastName, $hcfa->firstName);
-        if ($client === null) {
-            $io->error('Unable to find a matching client from the given claim.');
+        return Command::SUCCESS;
+    }
 
-            return Command::INVALID;
-        }
-
+    private function processClaim(Edi837Claim $claim, SymfonyStyle $io): void
+    {
         $fmt = new \NumberFormatter('en_US', \NumberFormatter::CURRENCY);
 
-        $summary = $this->charges->getSummary($client, $hcfa->payerId, $hcfa->fromDate, $hcfa->toDate);
-
+        $summary = $this->charges->getSummary($claim);
         if ($summary === null) {
-            $io->error('No charges found for the given parameters.');
+            throw new \RuntimeException('No charges found for the given parameters.');
+        }
 
-            return Command::INVALID;
+        if (bccomp($summary->getBilledAmount(), $claim->billed, 2) !== 0) {
+            throw new \RuntimeException(
+                'The total of the provided claim file does not match the total of the matched charges.'
+            );
         }
 
         $io->definitionList(
             'Claim Summary',
-            ['Claim ID' => $hcfa->claimId],
             ['Payer' => $summary->getPayer()],
-            ['Billed date' => $hcfa->billedDate->format('m/d/Y')],
-            ['From' => $hcfa->fromDate->format('m/d/Y')],
-            ['To' => $hcfa->toDate->format('m/d/Y')],
-            ['Client' => $client],
-            ['Charge' => $fmt->formatCurrency((float) $hcfa->total, 'USD')]
+            ['Billed date' => $summary->getBilledDate()->format('m/d/Y')],
+            ['From' => $summary->getStartDate()->format('m/d/Y')],
+            ['To' => $summary->getEndDate()->format('m/d/Y')],
+            ['Client' => $summary->getClient()],
+            ['Charge' => $fmt->formatCurrency((float) $summary->getBilledAmount(), 'USD')],
+            ['Contracted' => $fmt->formatCurrency((float) $summary->getContractAmount(), 'USD')],
+            ['Adjustments' => $fmt->formatCurrency((float) $summary->getContractualAdjustment(), 'USD')]
         );
 
         $billingId = $io->ask('Billing ID', null, $this->validateBillingId(...));
 
-        /** @var string[] $selectedCharges */
-        $selectedCharges = [];
-
-        if (bccomp($summary->getBilledAmount(), $hcfa->total, 2) !== 0) {
-            $io->caution('The total of the provided claim file does not match the total of the matched charges.');
-
-            $io->text('Please enter the details for the claim charges so they can be matched.');
-            $io->newLine();
-
-            $selectedCharges = $this->selectClaimCharges($client, $hcfa, $io);
-
-            $summary = $this->charges->getSummary($client, $hcfa->payerId, $hcfa->fromDate, $hcfa->toDate, $selectedCharges);
-            \assert($summary !== null);
-        }
-
-        $charges = $this->charges->getClaimCharges($client, $hcfa->payerId, $hcfa->fromDate, $hcfa->toDate, $selectedCharges);
+        $charges = $summary->getCharges();
 
         $io->section('Claim Charges');
 
@@ -158,27 +144,14 @@ final class ClaimCreateCommand extends Command
             $table
         );
 
-        $io->definitionList(
-            'Totals',
-            ['Billed' => $fmt->formatCurrency((float) $summary->getBilledAmount(), 'USD')],
-            ['Contracted' => $fmt->formatCurrency((float) $summary->getContractAmount(), 'USD')],
-            ['Adjustments' => $fmt->formatCurrency((float) $summary->getContractualAdjustment(), 'USD')],
-        );
-
         $io->text('If this looks good, this claim will be imported into QuickBooks.');
         if (!$io->confirm('Continue?')) {
-            return Command::SUCCESS;
+            return;
         }
 
         $unbilledAppointments = $this->appointments->findUnbilledFromCharges($charges);
 
-        try {
-            self::validateAppointments($charges, $unbilledAppointments);
-        } catch (ClaimCreationException $e) {
-            $io->error($e->getMessage());
-
-            return Command::FAILURE;
-        }
+        self::validateAppointments($charges, $unbilledAppointments);
 
         $this->createReversingJournalEntries($unbilledAppointments, $io);
 
@@ -196,128 +169,29 @@ final class ClaimCreateCommand extends Command
         $this->validateContractualAdjustmentItemSet($io);
 
         try {
-            $creditMemo = $this->creditMemos->createContractualAdjustmentCreditFromCharges($billingId, $charges);
-
-            $io->text(
-                sprintf(
-                    'Created credit memo %s for %s.',
-                    $creditMemo->DocNumber,
-                    $fmt->formatCurrency((float) $creditMemo->TotalAmt, 'USD')
-                )
-            );
-        } catch (ServiceException $e) {
-            $this->invoices->delete($invoice);
-            $io->error($e->getMessage());
-
-            return Command::FAILURE;
-        }
-
-        try {
-            $claim = $this->claims->createClaim(
-                $hcfa->claimId,
-                $hcfa->fileId,
+            $creditMemo = $this->creditMemos->createContractualAdjustmentCreditFromCharges(
                 $billingId,
-                $invoice,
-                $creditMemo,
                 $charges
             );
+
+            $io->text(sprintf(
+                'Created credit memo %s for %s.',
+                $creditMemo->DocNumber,
+                $fmt->formatCurrency((float) $creditMemo->TotalAmt, 'USD')
+            ));
+
+            $claim = $this->claims->createClaim($billingId, $invoice, $creditMemo, $charges);
         } catch (\Exception $e) {
             $this->invoices->delete($invoice);
-            $this->creditMemos->delete($creditMemo);
-            $io->error($e->getMessage());
 
-            return Command::FAILURE;
+            if (isset($creditMemo)) {
+                $this->creditMemos->delete($creditMemo);
+            }
+
+            throw $e;
         }
 
         $io->success(sprintf('Claim %s has been processed successfully.', $claim->getBillingId()));
-
-        return Command::SUCCESS;
-    }
-
-    /**
-     * @return string[]
-     */
-    private function selectClaimCharges(string $client, HcfaInfo $hcfa, SymfonyStyle $io): array
-    {
-        $charges = $this->charges->getClaimCharges($client, $hcfa->payerId, $hcfa->fromDate, $hcfa->toDate);
-
-        $selectedCharges = [];
-        $amount = '0.00';
-        $chargeNum = 1;
-
-        while (bccomp($amount, $hcfa->total, 2) !== 0) {
-            $io->text("Charge {$chargeNum}:");
-
-            $selected = self::filterByDate($charges, $io);
-
-            if (\count($selected) === 0) {
-                $io->error('No charges matched that date. Please try again.');
-
-                continue;
-            }
-            if (\count($selected) > 1) {
-                $selected = self::filterByBillingCode($selected, $io);
-
-                if (\count($selected) === 0) {
-                    $io->error('No charges matched that billing code. Please try again.');
-
-                    continue;
-                }
-                if (\count($selected) > 1) {
-                    throw new \RuntimeException('More than one charge matched that billing code.');
-                }
-            }
-
-            // Delete the charge so we can't select it more than once
-            unset($charges[array_key_first($selected)]);
-            $selectedCharge = array_shift($selected);
-            $selectedCharges[] = $selectedCharge->getChargeLine();
-            $amount = bcadd($amount, $selectedCharge->getBilledAmount());
-            ++$chargeNum;
-        }
-
-        return $selectedCharges;
-    }
-
-    /**
-     * @param Charge[] $charges
-     *
-     * @return Charge[]
-     */
-    private static function filterByDate(array $charges, SymfonyStyle $io): array
-    {
-        /** @var \DateTimeImmutable $date */
-        $date = $io->ask('Charge date', null, self::validateDate(...));
-
-        return array_filter(
-            $charges,
-            static fn (Charge $charge): bool => $charge->getServiceDate()->format('m/d/Y') === $date->format('m/d/Y')
-        );
-    }
-
-    /**
-     * @param Charge[] $charges
-     *
-     * @return Charge[]
-     */
-    private static function filterByBillingCode(array $charges, SymfonyStyle $io): array
-    {
-        $billCode = (string) $io->ask('Billing code');
-
-        return array_filter(
-            $charges,
-            static fn (Charge $charge): bool => $charge->getService()->getBillingCode() === $billCode
-        );
-    }
-
-    private static function validateDate(string $answer): \DateTimeImmutable
-    {
-        $date = \DateTimeImmutable::createFromFormat('m/d/Y', $answer);
-        if ($date === false) {
-            throw new \RuntimeException('Date must be in the format: mm/dd/yyyy.');
-        }
-
-        return $date->modify('00:00:00');
     }
 
     private function validateBillingId(string $value): string

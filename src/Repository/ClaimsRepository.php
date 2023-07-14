@@ -33,8 +33,6 @@ final class ClaimsRepository extends MongoRepository
      * @param Charge[] $charges
      */
     public function createClaim(
-        string $claimId,
-        string $fileId,
         string $billingId,
         $invoice,
         $creditMemo,
@@ -43,8 +41,6 @@ final class ClaimsRepository extends MongoRepository
         Assert::allIsInstanceOf($charges, Charge::class);
 
         $claim = new Claim(
-            id: $claimId,
-            fileId: $fileId,
             billingId: $billingId,
             status: ClaimStatus::processed,
             qbInvoiceId: $invoice->Id,

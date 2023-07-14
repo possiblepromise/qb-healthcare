@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PossiblePromise\QbHealthcare\Entity;
 
+use MongoDB\BSON\ObjectId;
 use MongoDB\BSON\Persistable;
 use QuickBooksOnline\API\Data\IPPCreditMemo;
 
@@ -11,6 +12,7 @@ final class Claim implements Persistable
 {
     use BelongsToCompanyTrait;
 
+    private ObjectId|string $id;
     private string $billedAmount;
     private string $contractAmount;
     private \DateTime $startDate;
@@ -19,9 +21,7 @@ final class Claim implements Persistable
     private PaymentInfo $paymentInfo;
 
     public function __construct(
-        private string $id,
-        private string $fileId,
-        private ?string $billingId = null,
+        private ?string $billingId,
         private ClaimStatus $status = ClaimStatus::processed,
         private ?string $qbInvoiceId = null,
         /** @var numeric-string[] */
@@ -29,16 +29,12 @@ final class Claim implements Persistable
         /** @var Charge[] */
         private array $charges = []
     ) {
+        $this->id = new ObjectId();
     }
 
-    public function getId(): string
+    public function getId(): ObjectId|string
     {
         return $this->id;
-    }
-
-    public function getFileId(): string
-    {
-        return $this->fileId;
     }
 
     public function getBillingId(): ?string
@@ -127,7 +123,6 @@ final class Claim implements Persistable
         // The rest are calculated automatically
         return $this->serializeCompanyId([
             '_id' => $this->id,
-            'fileId' => $this->fileId,
             'billingId' => $this->billingId,
             'status' => $this->status,
             'qbInvoiceId' => $this->qbInvoiceId,
@@ -139,7 +134,6 @@ final class Claim implements Persistable
     public function bsonUnserialize(array $data): void
     {
         $this->id = $data['_id'];
-        $this->fileId = $data['fileId'];
         $this->billingId = $data['billingId'] ?? null;
         $this->status = ClaimStatus::from($data['status']);
         $this->qbInvoiceId = $data['qbInvoiceId'];
