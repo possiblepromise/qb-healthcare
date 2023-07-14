@@ -78,7 +78,7 @@ final class JournalEntriesRepository
         return $result;
     }
 
-    public function deleteAccruedRevenueEntryFromAppointment(Appointment $appointment)
+    public function deleteAccruedRevenueEntryFromAppointment(Appointment $appointment): IPPJournalEntry
     {
         if ($appointment->getQbJournalEntryId() === null) {
             throw new \RuntimeException(sprintf('Appointment %s does not have a journal entry to delete.', $appointment->getId()));
