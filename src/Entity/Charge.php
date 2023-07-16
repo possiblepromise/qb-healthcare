@@ -83,11 +83,8 @@ final class Charge implements Persistable
             'contractAmount' => $this->contractAmount ? new Decimal128($this->contractAmount) : null,
             'billedUnits' => $this->billedUnits,
             'primaryPaymentInfo' => $this->primaryPaymentInfo,
+            'payerBalance' => new Decimal128($this->payerBalance),
         ];
-
-        if (bccomp($this->payerBalance, '0.00', 2) !== 0) {
-            $data['payerBalance'] = new Decimal128($this->payerBalance);
-        }
 
         return $this->serializeCompanyId($data);
     }
