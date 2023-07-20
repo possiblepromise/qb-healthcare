@@ -62,6 +62,15 @@ final class ImportAppointmentsCommand extends Command
             )
         );
 
+        $deleted = $this->appointments->deleteInactive($appointmentLines);
+
+        if ($deleted > 0) {
+            $io->success(sprintf(
+                'Deleted %d appointments',
+                $deleted
+            ));
+        }
+
         $matchedAppointments = $this->appointments->findMatches();
 
         if ($matchedAppointments !== 0) {

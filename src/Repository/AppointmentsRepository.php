@@ -76,6 +76,51 @@ final class AppointmentsRepository extends MongoRepository
     }
 
     /**
+     * @param AppointmentLine[] $lines
+     */
+    public function deleteInactive(array $lines): int
+    {
+        if (empty($lines)) {
+            return 0;
+        }
+
+        $ids = [];
+        $deleted = 0;
+
+        foreach ($lines as $line) {
+            $ids[] = $line->id;
+
+            if ($line->status === 'Active'
+                && $line->units !== null
+                && $line->charge !== null) {
+                continue;
+            }
+
+            $appointment = $this->appointments->findOneAndDelete([
+                '_id' => $line->id,
+                'completed' => false,
+            ]);
+            if ($appointment !== null) {
+                ++$deleted;
+            }
+        }
+
+        $result = $this->appointments->deleteMany([
+            '_id' => [
+                '$not' => ['$in' => $ids],
+            ],
+            'serviceDate' => [
+                '$gte' => new UTCDateTime($lines[array_key_first($lines)]->serviceDate),
+            ],
+            'completed' => false,
+        ]);
+
+        $deleted += $result->getDeletedCount();
+
+        return $deleted;
+    }
+
+    /**
      * @return Appointment[]
      */
     public function findByChargeData(
