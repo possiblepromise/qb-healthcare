@@ -10,14 +10,13 @@ use PossiblePromise\QbHealthcare\Repository\AppointmentsRepository;
 use PossiblePromise\QbHealthcare\Repository\ItemsRepository;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
-use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
 #[AsCommand(
     name: 'appointment:get-incomplete',
-    description: 'Gets the total of all incomplete appointments as of the given date.'
+    description: 'Gets the total of all incomplete appointments.'
 )]
 final class AppointmentGetIncomplete extends Command
 {
@@ -31,8 +30,7 @@ final class AppointmentGetIncomplete extends Command
     protected function configure(): void
     {
         $this
-            ->setHelp('Allows you to retrieve the total of all incomplete appointments as of a given date.')
-            ->addArgument('endDate', InputArgument::REQUIRED, 'The date as of which to fetch unbilled appointments.')
+            ->setHelp('Allows you to retrieve the total of all incomplete appointments.')
         ;
     }
 
@@ -42,12 +40,10 @@ final class AppointmentGetIncomplete extends Command
 
         $io->title('Incomplete Appointments');
 
-        $date = new \DateTime($input->getArgument('endDate'));
-
-        $incompleteAppointments = $this->appointments->findIncompleteAsOf($date);
+        $incompleteAppointments = $this->appointments->findIncomplete();
 
         if (empty($incompleteAppointments)) {
-            $io->success('There are currently no uncompleted appointments.');
+            $io->success('There are currently no incomplete appointments.');
 
             return Command::SUCCESS;
         }
@@ -82,8 +78,7 @@ final class AppointmentGetIncomplete extends Command
         }
 
         $io->text(sprintf(
-            'As of %s, there were %d incomplete appointments for a total of %s.',
-            $date->format('Y-m-d'),
+            'There are %d incomplete appointments for a total of %s.',
             \count($incompleteAppointments),
             $fmt->formatCurrency((float) $sum, 'USD')
         ));

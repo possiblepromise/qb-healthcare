@@ -182,15 +182,12 @@ final class AppointmentsRepository extends MongoRepository
     /**
      * @return Appointment[]
      */
-    public function findUnbilledAsOf(\DateTime $date): array
+    public function findUnbilled(): array
     {
         $result = $this->completedAppointments->aggregate([
             self::getClaimsLookup(),
             ['$match' => [
                 'claims' => ['$size' => 0],
-                'serviceDate' => [
-                    '$lte' => new UTCDateTime($date),
-                ],
             ]],
             ['$sort' => self::getDefaultSort()],
         ]);
@@ -201,14 +198,11 @@ final class AppointmentsRepository extends MongoRepository
     /**
      * @return Appointment[]
      */
-    public function findIncompleteAsOf(\DateTimeInterface $date): array
+    public function findIncomplete(): array
     {
         $result = $this->appointments->aggregate([
             ['$match' => [
                 'completed' => false,
-                'serviceDate' => [
-                    '$lte' => new UTCDateTime($date),
-                ],
             ]],
             ['$sort' => self::getDefaultSort()],
         ]);
