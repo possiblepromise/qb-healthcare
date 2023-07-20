@@ -84,11 +84,15 @@ final class AppointmentsRepository extends MongoRepository
             return 0;
         }
 
-        $ids = [];
         $deleted = 0;
+        $byPayer = [];
 
         foreach ($lines as $line) {
-            $ids[] = $line->id;
+            if (!isset($byPayer[$line->payerName])) {
+                $byPayer[$line->payerName] = [];
+            }
+
+            $byPayer[$line->payerName][] = $line->id;
 
             if ($line->status === 'Active'
                 && $line->units !== null
@@ -105,17 +109,22 @@ final class AppointmentsRepository extends MongoRepository
             }
         }
 
-        $result = $this->appointments->deleteMany([
-            '_id' => [
-                '$not' => ['$in' => $ids],
-            ],
-            'serviceDate' => [
-                '$gte' => new UTCDateTime($lines[array_key_first($lines)]->serviceDate),
-            ],
-            'completed' => false,
-        ]);
+        $firstDate = $lines[array_key_first($lines)]->serviceDate;
 
-        $deleted += $result->getDeletedCount();
+        foreach ($byPayer as $payer => $ids) {
+            $result = $this->appointments->deleteMany([
+                '_id' => [
+                    '$not' => ['$in' => $ids],
+                ],
+                'serviceDate' => [
+                    '$gte' => new UTCDateTime($firstDate),
+                ],
+                'payer.name' => $payer,
+                'completed' => false,
+            ]);
+
+            $deleted += $result->getDeletedCount();
+        }
 
         return $deleted;
     }
