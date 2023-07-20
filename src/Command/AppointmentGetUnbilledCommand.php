@@ -15,10 +15,10 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
 #[AsCommand(
-    name: 'appointment:get-unbilled-total',
+    name: 'appointment:get-unbilled',
     description: 'Gets the total of all unbilled appointments.'
 )]
-final class AppointmentGetUnbilledTotalCommand extends Command
+final class AppointmentGetUnbilledCommand extends Command
 {
     public function __construct(
         private AppointmentsRepository $appointments,
@@ -38,7 +38,7 @@ final class AppointmentGetUnbilledTotalCommand extends Command
     {
         $io = new SymfonyStyle($input, $output);
 
-        $io->title('Get Total of Unbilled Appointments');
+        $io->title('Get Unbilled Appointments');
 
         $unbilledAppointments = $this->appointments->findUnbilled();
 
