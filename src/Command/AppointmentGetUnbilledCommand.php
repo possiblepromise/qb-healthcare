@@ -69,10 +69,13 @@ final class AppointmentGetUnbilledCommand extends Command
             ];
         }
 
-        $io->text(sprintf(
-            'There are %d unbilled appointments for a total of %s.',
-            \count($unbilledAppointments),
-            $fmt->formatCurrency((float) $sum, 'USD')
+        $io->text(\MessageFormatter::formatMessage(
+            'en_US',
+            '{0, plural, ' .
+            'one {There is # unbilled appointment} ' .
+            'other {There are # unbilled appointments}' .
+        '} for a total of {1, number, :: currency/USD}.',
+            [\count($unbilledAppointments), $sum]
         ));
         $io->newLine();
 

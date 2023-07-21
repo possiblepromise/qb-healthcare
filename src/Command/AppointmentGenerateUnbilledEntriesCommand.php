@@ -58,7 +58,15 @@ final class AppointmentGenerateUnbilledEntriesCommand extends Command
             return Command::SUCCESS;
         }
 
-        $io->text('There are ' . \count($unbilledAppointments) . ' unbilled appointments.');
+        $io->text(\MessageFormatter::formatMessage(
+            'en_US',
+            '{0, plural, ' .
+                'one {There is # unbilled appointment.} ' .
+                'other {There are # unbilled appointments.}' .
+                '}',
+            [\count($unbilledAppointments)]
+        ));
+
         $startingRef = $io->ask('Please enter starting ref number', null, static function (string $value): string {
             if (!ctype_digit($value)) {
                 throw new \InvalidArgumentException('Ref number must be an integer.');
@@ -88,7 +96,11 @@ final class AppointmentGenerateUnbilledEntriesCommand extends Command
             ++$entriesCreated;
         }
 
-        $io->success('Created journal entries for ' . $entriesCreated . ' unbilled appointments.');
+        $io->success(\MessageFormatter::formatMessage(
+            'en_US',
+            '{0, plural, one {Created a journal entry for # unbilled appointment} other {Created journal entries for # unbilled appointments}}',
+            [$entriesCreated]
+        ));
 
         return Command::SUCCESS;
     }

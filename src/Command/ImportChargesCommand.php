@@ -57,17 +57,20 @@ final class ImportChargesCommand extends Command
 
         $imported = $this->charges->import($chargeLines);
 
-        $io->success(
-            sprintf(
-                'Imported %d charges',
-                $imported->new
-            )
-        );
+        $io->success(\MessageFormatter::formatMessage(
+            'en_US',
+            '{0, plural, =0 {No charges to import} one {Imported # charge} other {Imported # charges}}',
+            [$imported->new]
+        ));
 
         $matchedAppointments = $this->appointments->findMatches();
 
         if ($matchedAppointments > 0) {
-            $io->success("Matched {$matchedAppointments} appointments to charges.");
+            $io->success(\MessageFormatter::formatMessage(
+                'en_US',
+                '{0, plural, one {Matched # appointment to a charge} other {Matched # appointments to charges}}',
+                [$matchedAppointments]
+            ));
         }
 
         return Command::SUCCESS;

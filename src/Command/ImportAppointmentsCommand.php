@@ -53,28 +53,35 @@ final class ImportAppointmentsCommand extends Command
 
         $imported = $this->appointments->import($appointmentLines);
 
-        $io->success(
-            sprintf(
-                'Imported %d appointments: %d new and %d modified',
+        $io->success(\MessageFormatter::formatMessage(
+            'en_US',
+            '{0, plural, one {Imported # appointment} other {Imported # appointments}}: ' .
+            '{1, number, integer} new and {2, number, integer} modified',
+            [
                 $imported->new + $imported->modified,
                 $imported->new,
-                $imported->modified
-            )
-        );
+                $imported->modified,
+            ]
+        ));
 
         $deleted = $this->appointments->deleteInactive($appointmentLines);
 
         if ($deleted > 0) {
-            $io->success(sprintf(
-                'Deleted %d appointments',
-                $deleted
+            $io->success(\MessageFormatter::formatMessage(
+                'en_US',
+                '{0, plural, one {Deleted # appointment} other {Deleted # appointments}}',
+                [$deleted]
             ));
         }
 
         $matchedAppointments = $this->appointments->findMatches();
 
         if ($matchedAppointments !== 0) {
-            $io->success("Matched {$matchedAppointments} appointments to charges.");
+            $io->success(\MessageFormatter::formatMessage(
+                'en_US',
+                '{0, plural, one {Matched # appointment to a charge} other {Matched # appointments to charges}}',
+                [$matchedAppointments]
+            ));
         }
 
         return Command::SUCCESS;

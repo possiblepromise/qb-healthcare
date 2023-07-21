@@ -67,10 +67,13 @@ final class AppointmentGetIncomplete extends Command
             ];
         }
 
-        $io->text(sprintf(
-            'There are %d incomplete appointments for a total of %s.',
-            \count($incompleteAppointments),
-            $fmt->formatCurrency((float) $sum, 'USD')
+        $io->text(\MessageFormatter::formatMessage(
+            'en_US',
+            '{0, plural, ' .
+            'one {There is # incomplete appointment} ' .
+            'other {There are # incomplete appointments}' .
+            '} for a total of {1, number, :: currency/USD}.',
+            [\count($incompleteAppointments), $sum]
         ));
         $io->newLine();
 
