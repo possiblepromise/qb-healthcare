@@ -7,7 +7,6 @@ declare(strict_types=1);
 namespace PossiblePromise\QbHealthcare\Command;
 
 use PossiblePromise\QbHealthcare\Repository\AppointmentsRepository;
-use PossiblePromise\QbHealthcare\Repository\ItemsRepository;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -20,10 +19,8 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 )]
 final class AppointmentGetIncomplete extends Command
 {
-    public function __construct(
-        private AppointmentsRepository $appointments,
-        private ItemsRepository $items
-    ) {
+    public function __construct(private AppointmentsRepository $appointments)
+    {
         parent::__construct();
     }
 
@@ -58,20 +55,13 @@ final class AppointmentGetIncomplete extends Command
         $rows = [];
         $sum = '0.00';
         $fmt = new \NumberFormatter('en_US', \NumberFormatter::CURRENCY);
-        $qbServices = [];
 
         foreach ($incompleteAppointments as $appointment) {
             $sum = bcadd($sum, $appointment->getCharge(), 2);
 
-            $itemId = $appointment->getPayer()->getServices()[0]->getQbItemId();
-            if (!isset($qbServices[$itemId])) {
-                $service = $this->items->get($itemId);
-                $qbServices[$itemId] = $service->Name;
-            }
-
             $rows[] = [
                 $appointment->getServiceDate()->format('Y-m-d'),
-                $qbServices[$itemId],
+                $appointment->getPayer()->getServices()[0]->getName(),
                 $appointment->getClientName(),
                 $fmt->formatCurrency((float) $appointment->getCharge(), 'USD'),
             ];
