@@ -17,7 +17,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
     name: 'appointment:get-incomplete',
     description: 'Gets the total of all incomplete appointments.'
 )]
-final class AppointmentGetIncomplete extends Command
+final class AppointmentGetIncompleteCommand extends Command
 {
     public function __construct(private AppointmentsRepository $appointments)
     {
