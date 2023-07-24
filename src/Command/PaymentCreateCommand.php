@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace PossiblePromise\QbHealthcare\Command;
 
+use PossiblePromise\QbHealthcare\Edi\Edi835ChargePayment;
+use PossiblePromise\QbHealthcare\Edi\Edi835ClaimPayment;
+use PossiblePromise\QbHealthcare\Edi\Edi835Reader;
 use PossiblePromise\QbHealthcare\Entity\Charge;
 use PossiblePromise\QbHealthcare\Entity\Claim;
-use PossiblePromise\QbHealthcare\Entity\ProviderAdjustment;
-use PossiblePromise\QbHealthcare\Entity\ProviderAdjustmentType;
-use PossiblePromise\QbHealthcare\Era835Reader;
 use PossiblePromise\QbHealthcare\Exception\PaymentCreationException;
 use PossiblePromise\QbHealthcare\QuickBooks;
 use PossiblePromise\QbHealthcare\Repository\ChargesRepository;
@@ -18,14 +18,12 @@ use PossiblePromise\QbHealthcare\Repository\InvoicesRepository;
 use PossiblePromise\QbHealthcare\Repository\ItemsRepository;
 use PossiblePromise\QbHealthcare\Repository\PayersRepository;
 use PossiblePromise\QbHealthcare\Repository\PaymentsRepository;
-use PossiblePromise\QbHealthcare\Type\FilterableArray;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
-use Webmozart\Assert\Assert;
 
 #[AsCommand(
     name: 'payment:create',
@@ -34,6 +32,13 @@ use Webmozart\Assert\Assert;
 final class PaymentCreateCommand extends Command
 {
     use PaymentCreateTrait;
+
+    /**
+     * Caches the charges to be updated so they can be restored if needed.
+     *
+     * @var Charge[]
+     */
+    private array $cachedCharges = [];
 
     public function __construct(
         private ChargesRepository $charges,
@@ -64,163 +69,106 @@ final class PaymentCreateCommand extends Command
 
         $file = $input->getArgument('eraFile');
 
-        $era835 = new Era835Reader($file);
+        $era835 = new Edi835Reader($file);
+        $payment = $era835->process();
 
         $fmt = new \NumberFormatter('en_US', \NumberFormatter::CURRENCY);
 
-        $code = $era835->read('BPR01');
-        if ($code !== 'I') {
-            $io->error('This ERA 835 does not contain remittance information.');
-
-            return Command::INVALID;
-        }
-
-        $paymentAmount = $era835->read('BPR02');
-        if ($era835->read('BPR03') !== 'C') {
-            $io->error('This ERA 835 file does not represent a credit.');
-
-            return Command::FAILURE;
-        }
-
-        $paymentType = $era835->read('BPR04');
-        Assert::oneOf($paymentType, ['ACH', 'CHK'], 'Invalid payment type encountered');
-
-        $depositDate = \DateTimeImmutable::createFromFormat('Ymd', $era835->read('BPR16'))->modify('00:00:00');
-
-        $paymentRef = $era835->read('TRN02');
-        $payerName = $era835->read('N102');
-
         $message = sprintf(
-            'Did you receive a %s from %s for %s on %s?',
-            $paymentType === 'ACH' ? 'deposit' : 'check',
-            $payerName,
-            $fmt->formatCurrency((float) $paymentAmount, 'USD'),
-            $depositDate->format('Y-m-d')
+            'Did you receive a payment from %s for %s on %s?',
+            $payment->payerName,
+            $fmt->formatCurrency((float) $payment->payment, 'USD'),
+            $payment->paymentDate->format('Y-m-d')
         );
         if (!$io->confirm($message)) {
             return Command::INVALID;
         }
 
-        $paymentTotal = '0.00';
         /** @var Claim[] $claims */
         $claims = [];
-        $providerAdjustments = [];
+        $unfinishedClaimIds = [];
 
         try {
-            while (bccomp($paymentTotal, $paymentAmount, 2) !== 0) {
-                $claim = $this->processClaim($paymentRef, $depositDate, $era835);
+            foreach ($payment->claims as $claim) {
+                $claim = $this->processClaim($payment->paymentRef, $payment->paymentDate, $claim);
+                $unfinishedKey = array_search($claim->getBillingId(), $unfinishedClaimIds, true);
 
-                if ($claim === null) {
-                    // No more claims so there must be another adjustment
-                    $providerAdjustment = self::processProviderAdjustment($era835);
-                    $paymentTotal = bcadd($paymentTotal, $providerAdjustment->getAmount(), 2);
-                    $providerAdjustments[] = $providerAdjustment;
-                } else {
-                    $paymentTotal = bcadd($paymentTotal, $claim->getPaymentInfo()->getPayment(), 2);
+                if (bccomp($claim->getBalance(), '0.00', 2) === 0) {
                     $claims[] = $claim;
+
+                    if ($unfinishedKey !== false) {
+                        unset($unfinishedClaimIds[$unfinishedKey]);
+                    }
+                } elseif ($unfinishedKey === false) {
+                    $unfinishedClaimIds[] = $claim->getBillingId();
                 }
             }
         } catch (PaymentCreationException $e) {
+            $this->restoreCharges();
             $io->error($e->getMessage());
 
             return Command::FAILURE;
         }
 
-        if (bccomp($paymentTotal, $paymentAmount, 2) === 1) {
-            $io->error(sprintf(
-                'Claims add up to %s, but %s was expected.',
-                $fmt->formatCurrency((float) $paymentTotal, 'USD'),
-                $fmt->formatCurrency((float) $paymentAmount, 'USD')
-            ));
+        if (!empty($unfinishedClaimIds)) {
+            $io->error('The following claims have remaining balances after the payment is applied:');
+            $io->listing($unfinishedClaimIds);
+            $this->restoreCharges();
 
             return Command::FAILURE;
         }
 
-        self::showPaidClaims($claims, $providerAdjustments, $io);
+        self::showPaidClaims($claims, $payment->providerAdjustments, $io);
 
         if (!$io->confirm('Continue?', false)) {
+            $this->restoreCharges();
+
             return Command::SUCCESS;
         }
 
         try {
-            $this->syncToQb($paymentRef, $depositDate, $claims, $providerAdjustments, $io);
+            $this->syncToQb($payment->paymentRef, $payment->paymentDate, $claims, $payment->providerAdjustments, $io);
         } catch (PaymentCreationException $e) {
+            $this->restoreCharges();
             $io->error($e->getMessage());
 
             return Command::FAILURE;
         }
 
-        $io->success(sprintf('Payment %s has been processed successfully.', $paymentRef));
+        $io->success(sprintf('Payment %s has been processed successfully.', $payment->paymentRef));
 
         return Command::SUCCESS;
     }
 
-    private function processClaim(string $paymentRef, \DateTimeImmutable $paymentDate, Era835Reader $era835): ?Claim
+    private function processClaim(string $paymentRef, \DateTimeImmutable $paymentDate, Edi835ClaimPayment $claim): ?Claim
     {
-        $amountClaimed = $era835->read('CLP03');
-        if ($amountClaimed === null) {
-            // No more claims in the file
-            return null;
-        }
+        $charges = [];
 
-        $amountPaid = $era835->read('CLP04');
-        $patientResponsibility = $era835->read('CLP05');
-        $lastName = $era835->read('NM103');
-        $firstName = $era835->read('NM104');
-
-        // Loop through services
-        $claimTotal = '0.00';
-        $claimPatientResponsibility = '0.00';
-        $claimCharges = new FilterableArray();
-
-        while (bccomp($claimTotal, $amountPaid, 2) === -1) {
-            $charge = $this->processCharge(
+        foreach ($claim->charges as $chargePayment) {
+            $charges[] = $this->processCharge(
                 $paymentRef,
                 $paymentDate,
-                $lastName,
-                $firstName,
-                $era835
+                $claim->clientLastName,
+                $claim->clientFirstName,
+                $chargePayment
             );
-
-            $claimCharges->add($charge);
-            $claimTotal = bcadd($claimTotal, $charge->getPrimaryPaymentInfo()->getPayment(), 2);
-            $claimPatientResponsibility = bcadd($claimPatientResponsibility, $charge->getPrimaryPaymentInfo()->getCoinsurance(), 2);
         }
 
         $fmt = new \NumberFormatter('en_US', \NumberFormatter::CURRENCY);
 
-        if (bccomp($claimTotal, $amountPaid, 2) === 1) {
-            throw new PaymentCreationException(sprintf(
-                'Charges add up to %s, but %s was expected.',
-                $fmt->formatCurrency((float) $claimTotal, 'USD'),
-                $fmt->formatCurrency((float) $amountPaid, 'USD')
-            ));
-        }
-        if (bccomp($claimPatientResponsibility, $patientResponsibility, 2) !== 0) {
-            throw new PaymentCreationException(sprintf(
-                'Patient responsibility should be %s, but %s received.',
-                $fmt->formatCurrency((float) $patientResponsibility, 'USD'),
-                $fmt->formatCurrency((float) $claimPatientResponsibility, 'USD')
-            ));
-        }
-
-        $claim = $this->claims->findOneByCharges($claimCharges);
+        $claim = $this->claims->findOneByCharges($charges);
 
         if ($claim === null) {
             throw new PaymentCreationException('No claim found for the matched charges.');
         }
-        if (bccomp($amountClaimed, $claim->getBilledAmount(), 2) !== 0) {
+        if ($claim->getBillingId() === null) {
             throw new PaymentCreationException(sprintf(
-                'Total billed on the claim was %s, but %s was expected.',
+                'The claim billed on %s for %s, for client %s, with charges from %s to %s, does not have a billing ID.',
+                $claim->getPaymentInfo()->getBilledDate()->format('Y-m-d'),
                 $fmt->formatCurrency((float) $claim->getBilledAmount(), 'USD'),
-                $fmt->formatCurrency((float) $amountClaimed, 'USD')
-            ));
-        }
-        if (bccomp($amountPaid, $claim->getPaymentInfo()->getPayment(), 2) !== 0) {
-            throw new PaymentCreationException(sprintf(
-                'Total payments on the claim are %s, but %s was expected.',
-                $fmt->formatCurrency((float) $claim->getPaymentInfo()->getPayment(), 'USD'),
-                $fmt->formatCurrency((float) $amountPaid, 'USD')
+                $claim->getClientName(),
+                $claim->getStartDate()->format('Y-m-d'),
+                $claim->getEndDate()->format('Y-m-d')
             ));
         }
 
@@ -232,19 +180,13 @@ final class PaymentCreateCommand extends Command
         \DateTimeImmutable $paymentDate,
         ?string $lastName,
         ?string $firstName,
-        Era835Reader $era835
+        Edi835ChargePayment $chargePayment
     ): Charge {
-        $billingCode = $era835->read('SVC01-2');
-        $chargeBilled = $era835->read('SVC02');
-        $chargePaid = $era835->read('SVC03');
-        $chargeUnits = (int) $era835->read('SVC05');
-        $serviceDate = \DateTimeImmutable::createFromFormat('Ymd', $era835->read('DTM02'))->modify('00:00:00');
-
         $charges = $this->charges->findBySvcData(
-            billingCode: $billingCode,
-            billedAmount: $chargeBilled,
-            units: $chargeUnits,
-            serviceDate: $serviceDate,
+            billingCode: $chargePayment->billingCode,
+            billedAmount: $chargePayment->billed,
+            units: $chargePayment->units,
+            serviceDate: $chargePayment->serviceDate,
             lastName: $lastName,
             firstName: $firstName
         );
@@ -259,95 +201,35 @@ final class PaymentCreateCommand extends Command
         /** @var Charge $charge */
         $charge = $charges->shift();
 
-        [$contractualAdjustment, $coinsurance] = $this->processAdjustments($era835);
-
         self::validateChargeAdjustments(
             $charge,
-            $contractualAdjustment,
-            $coinsurance,
-            $chargeBilled,
-            $chargePaid
+            $chargePayment->contractualAdjustment,
+            $chargePayment->coinsurance,
+            $chargePayment->billed,
+            $chargePayment->paid
         );
 
+        // Cache the existing charge in case there are any errors
+        $this->cachedCharges[] = clone $charge;
+
         $charge
+            ->setPayerBalance('0.00')
             ->getPrimaryPaymentInfo()
             ->setPaymentDate($paymentDate)
             ->setPaymentRef($paymentRef)
-            ->setPayment($chargePaid)
-            ->setCoinsurance($coinsurance)
+            ->setPayment($chargePayment->paid)
+            ->setCoinsurance($chargePayment->coinsurance)
         ;
-
-        $charge->setPayerBalance('0.00');
 
         $this->charges->save($charge);
 
         return $charge;
     }
 
-    private function processAdjustments(Era835Reader $era835): array
+    private function restoreCharges(): void
     {
-        $contractualAdjustment = null;
-        $coinsurance = null;
-
-        do {
-            $adjustmentType = $era835->read('CAS01');
-            $code = $era835->read('CAS02');
-            $adjustmentAmount = $era835->read('CAS03');
-
-            if ($adjustmentType === 'CO' && $code === '45') {
-                $contractualAdjustment = $adjustmentAmount;
-            } elseif ($adjustmentType === 'PR' && $code === '2') {
-                $coinsurance = $adjustmentAmount;
-            } else {
-                throw new PaymentCreationException(
-                    sprintf(
-                        'Encountered unexpected adjustment: %s with code %s',
-                        $adjustmentType,
-                        $code
-                    )
-                );
-            }
-
-            $segmentType = $era835->next();
-        } while ($segmentType === 'CAS');
-
-        if ($contractualAdjustment === null) {
-            throw new PaymentCreationException('Cannot find contractual adjustment.');
-        }
-
-        return [$contractualAdjustment, $coinsurance];
-    }
-
-    private static function processProviderAdjustment(Era835Reader $era835): ProviderAdjustment
-    {
-        $providerAdjustmentReason = $era835->read('PLB03-01');
-        if ($providerAdjustmentReason === null) {
-            throw new PaymentCreationException(
-                'No provider adjustment found but payment total is not adding up.'
-            );
-        }
-
-        // Must reverse, because in the PLB segment, a negative amount represents a payment,
-        // and a positive amount represents a withholding
-        $amount = bcmul($era835->read('PLB04'), '-1', 2);
-
-        // Go to the next line so we can pick up other PLB segments
-        $era835->next();
-
-        switch ($providerAdjustmentReason) {
-            case 'L6':
-                return new ProviderAdjustment(ProviderAdjustmentType::interest, $amount);
-
-            case 'AH':
-                return new ProviderAdjustment(ProviderAdjustmentType::origination_fee, $amount);
-
-            default:
-                throw new PaymentCreationException(
-                    sprintf(
-                        'Do not know how to handle provider adjustment reason %s.',
-                        $providerAdjustmentReason
-                    )
-                );
+        foreach ($this->cachedCharges as $charge) {
+            $this->charges->save($charge);
         }
     }
 }

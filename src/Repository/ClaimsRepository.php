@@ -55,11 +55,14 @@ final class ClaimsRepository extends MongoRepository
         return $claim;
     }
 
-    public function findOneByCharges(FilterableArray $charges): ?Claim
+    /**
+     * @param Charge[] $charges
+     */
+    public function findOneByCharges(array $charges): ?Claim
     {
         return $this->claims->findOne([
             'charges' => [
-                '$all' => $charges->map(static fn (Charge $charge): string => $charge->getChargeLine()),
+                '$all' => array_map(static fn (Charge $charge): string => $charge->getChargeLine(), $charges),
             ],
         ]);
     }

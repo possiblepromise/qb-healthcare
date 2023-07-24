@@ -107,4 +107,9 @@ final class Charge implements Persistable
 
         $this->unserializeCompanyId($data);
     }
+
+    public function __clone(): void
+    {
+        $this->primaryPaymentInfo = clone $this->primaryPaymentInfo;
+    }
 }

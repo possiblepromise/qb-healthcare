@@ -15,6 +15,7 @@ final class Claim implements Persistable
     private ObjectId|string $id;
     private string $billedAmount;
     private string $contractAmount;
+    private string $balance;
     private \DateTime $startDate;
     private \DateTime $endDate;
     private string $clientName;
@@ -80,6 +81,11 @@ final class Claim implements Persistable
         return $this->contractAmount;
     }
 
+    public function getBalance(): string
+    {
+        return $this->balance;
+    }
+
     public function getStartDate(): \DateTime
     {
         return $this->startDate;
@@ -140,6 +146,7 @@ final class Claim implements Persistable
         $this->qbCreditMemoIds = $data['qbCreditMemoIds']->getArrayCopy();
         $this->billedAmount = (string) $data['billedAmount'];
         $this->contractAmount = (string) $data['contractAmount'];
+        $this->balance = (string) $data['balance'];
         $this->startDate = $data['startDate']->toDateTime();
         $this->endDate = $data['endDate']->toDateTime();
         $this->clientName = $data['clientName'];
