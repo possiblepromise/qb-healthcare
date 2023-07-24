@@ -37,6 +37,8 @@ final class Edi835Reader
         $currentClaim = null;
         $chargeIndex = -1;
         $currentCharge = null;
+        $claimStartDate = null;
+        $claimEndDate = null;
 
         /** @var Segment $segment */
         foreach ($st->properties as $segment) {
@@ -64,6 +66,10 @@ final class Edi835Reader
 
                     $payment->claims[++$claimIndex] = $claim;
                     $currentClaim = $claim;
+
+                    // Set start and end date to null so we're not getting old data
+                $claimStartDate = null;
+                $claimEndDate = null;
                     break;
 
                 case 'NM1':
@@ -80,6 +86,12 @@ final class Edi835Reader
                     $charge->paid = $segment->SVC03;
                     $charge->units = (int) $segment->SVC05;
 
+                    if ($claimStartDate !== null
+                    && $claimEndDate !== null
+                    && $claimStartDate->format('Y-m-d') === $claimEndDate->format('Y-m-d')) {
+                        $charge->serviceDate = clone $claimStartDate;
+                    }
+
                     $currentClaim->charges[++$chargeIndex] = $charge;
                     $currentCharge = $charge;
                     break;
@@ -87,6 +99,11 @@ final class Edi835Reader
                 case 'DTM':
                     if ($segment->DTM01 === '472' || $segment->DTM01 === '150') {
                         $currentCharge->serviceDate = self::parseDate($segment->DTM02);
+                    } elseif ($segment->DTM01 === '232') {
+                        $claimStartDate = self::parseDate($segment->DTM02);
+                    } elseif ($segment->DTM01 === '233') {
+                        $claimEndDate = self::parseDate($segment->DTM02);
+
                     }
                     break;
 
