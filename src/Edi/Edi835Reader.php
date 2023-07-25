@@ -68,8 +68,8 @@ final class Edi835Reader
                     $currentClaim = $claim;
 
                     // Set start and end date to null so we're not getting old data
-                $claimStartDate = null;
-                $claimEndDate = null;
+                    $claimStartDate = null;
+                    $claimEndDate = null;
                     break;
 
                 case 'NM1':
@@ -103,7 +103,6 @@ final class Edi835Reader
                         $claimStartDate = self::parseDate($segment->DTM02);
                     } elseif ($segment->DTM01 === '233') {
                         $claimEndDate = self::parseDate($segment->DTM02);
-
                     }
                     break;
 
