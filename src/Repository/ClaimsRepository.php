@@ -75,16 +75,6 @@ final class ClaimsRepository extends MongoRepository
         );
     }
 
-    public function getNextUnpaidClaim(): ?Claim
-    {
-        return $this->claims->findOne(
-            [
-                'status' => 'processed',
-                'billingId' => null,
-            ]
-        );
-    }
-
     public function get(string $claimId): Claim
     {
         return $this->claims->findOne(['_id' => $claimId]);
