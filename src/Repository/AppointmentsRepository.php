@@ -282,6 +282,25 @@ final class AppointmentsRepository extends MongoRepository
         );
     }
 
+    public function getLastJournalEntryId(): string
+    {
+        /** @var Appointment $appointment */
+        $appointment = $this->appointments->findOne(
+            [],
+            [
+                'sort' => [
+                    'qbJournalEntryId' => -1,
+                ],
+                'collation' => [
+                    'locale' => 'en_US',
+                    'numericOrdering' => true,
+                ],
+            ]
+        );
+
+        return $appointment->getQbJournalEntryId();
+    }
+
     private function matchCharge(Charge $charge): int
     {
         $appointments = $this->findByChargeData(

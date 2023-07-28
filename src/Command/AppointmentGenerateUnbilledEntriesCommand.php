@@ -67,7 +67,10 @@ final class AppointmentGenerateUnbilledEntriesCommand extends Command
             [\count($unbilledAppointments)]
         ));
 
-        $startingRef = $io->ask('Please enter starting ref number', null, static function (string $value): string {
+        $lastEntryId = $this->appointments->getLastJournalEntryId();
+        $lastEntry = $this->journalEntries->get($lastEntryId);
+
+        $startingRef = $io->ask('Please enter starting ref number', bcadd($lastEntry->DocNumber, '1'), static function (string $value): string {
             if (!ctype_digit($value)) {
                 throw new \InvalidArgumentException('Ref number must be an integer.');
             }

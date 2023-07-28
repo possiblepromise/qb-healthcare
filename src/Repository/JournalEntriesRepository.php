@@ -93,6 +93,11 @@ final class JournalEntriesRepository
         return $journalEntry;
     }
 
+    public function get(string $entryId): IPPJournalEntry
+    {
+        return $this->dataService->FindById('JournalEntry', $entryId);
+    }
+
     private function createJournalEntryObject(
         string $docNumber,
         \DateTime $date,
