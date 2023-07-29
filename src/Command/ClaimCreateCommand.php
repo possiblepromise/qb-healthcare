@@ -29,7 +29,6 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Filesystem\Filesystem;
-use Symfony\Component\Filesystem\Path;
 
 #[AsCommand(
     name: 'claim:create',
@@ -37,7 +36,6 @@ use Symfony\Component\Filesystem\Path;
 )]
 final class ClaimCreateCommand extends Command
 {
-
     private const PROCESSED_CLAIMS_PATH = 'var/processed/claims';
 
     public function __construct(
@@ -321,6 +319,6 @@ final class ClaimCreateCommand extends Command
             $fileSystem->mkdir(self::PROCESSED_CLAIMS_PATH);
         }
 
-        $fileSystem->rename($file, self::PROCESSED_CLAIMS_PATH. '/' . basename($file));
+        $fileSystem->rename($file, self::PROCESSED_CLAIMS_PATH . '/' . basename($file));
     }
 }
