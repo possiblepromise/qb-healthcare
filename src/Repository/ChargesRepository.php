@@ -94,7 +94,6 @@ final class ChargesRepository extends MongoRepository
 
         /** @var Cursor $result */
         $result = $this->charges->aggregate([
-            self::getClaimsLookup(),
             ['$match' => [
                 '_id' => ['$in' => $ids],
             ]],
