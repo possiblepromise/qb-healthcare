@@ -28,6 +28,8 @@ use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
+use Symfony\Component\Filesystem\Filesystem;
+use Symfony\Component\Filesystem\Path;
 
 #[AsCommand(
     name: 'claim:create',
@@ -35,6 +37,9 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 )]
 final class ClaimCreateCommand extends Command
 {
+
+    private const PROCESSED_CLAIMS_PATH = 'var/processed/claims';
+
     public function __construct(
         private ChargesRepository $charges,
         private ItemsRepository $items,
@@ -90,6 +95,8 @@ final class ClaimCreateCommand extends Command
 
             return Command::FAILURE;
         }
+
+        self::moveProcessedClaim($file);
 
         return Command::SUCCESS;
     }
@@ -304,5 +311,16 @@ final class ClaimCreateCommand extends Command
             $this->qb->getActiveCompany()->contractualAdjustmentItem = $contractualAdjustmentItem->Id;
             $this->qb->save();
         }
+    }
+
+    private static function moveProcessedClaim(string $file): void
+    {
+        $fileSystem = new Filesystem();
+
+        if (!$fileSystem->exists(self::PROCESSED_CLAIMS_PATH)) {
+            $fileSystem->mkdir(self::PROCESSED_CLAIMS_PATH);
+        }
+
+        $fileSystem->rename($file, self::PROCESSED_CLAIMS_PATH. '/' . basename($file));
     }
 }
