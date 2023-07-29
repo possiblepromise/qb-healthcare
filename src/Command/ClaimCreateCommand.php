@@ -111,6 +111,7 @@ final class ClaimCreateCommand extends Command
 
         $io->definitionList(
             'Claim Summary',
+            ['Billing ID' => $summary->getBillingId()],
             ['Payer' => $summary->getPayer()],
             ['Billed date' => $summary->getBilledDate()->format('m/d/Y')],
             ['From' => $summary->getStartDate()->format('m/d/Y')],
@@ -120,8 +121,6 @@ final class ClaimCreateCommand extends Command
             ['Contracted' => $fmt->formatCurrency((float) $summary->getContractAmount(), 'USD')],
             ['Adjustments' => $fmt->formatCurrency((float) $summary->getContractualAdjustment(), 'USD')]
         );
-
-        $billingId = $io->ask('Billing ID', null, $this->validateBillingId(...));
 
         $charges = $summary->getCharges();
 
@@ -157,7 +156,7 @@ final class ClaimCreateCommand extends Command
 
         $this->validateDefaultPaymentTermSet($io);
 
-        $invoice = $this->invoices->createFromCharges($billingId, $charges);
+        $invoice = $this->invoices->createFromCharges($summary->getBillingId(), $charges);
 
         $io->text(sprintf(
             'Created invoice %s for %s.',
@@ -170,7 +169,7 @@ final class ClaimCreateCommand extends Command
 
         try {
             $creditMemo = $this->creditMemos->createContractualAdjustmentCreditFromCharges(
-                $billingId,
+                $summary->getBillingId(),
                 $charges
             );
 
@@ -180,7 +179,7 @@ final class ClaimCreateCommand extends Command
                 $fmt->formatCurrency((float) $creditMemo->TotalAmt, 'USD')
             ));
 
-            $claim = $this->claims->createClaim($billingId, $invoice, $creditMemo, $charges);
+            $claim = $this->claims->createClaim($summary->getBillingId(), $invoice, $creditMemo, $charges);
         } catch (\Exception $e) {
             $this->invoices->delete($invoice);
 
@@ -192,20 +191,6 @@ final class ClaimCreateCommand extends Command
         }
 
         $io->success(sprintf('Claim %s has been processed successfully.', $claim->getBillingId()));
-    }
-
-    private function validateBillingId(string $value): string
-    {
-        if (preg_match('/^IN\d{8}$/', $value) === 0) {
-            throw new \RuntimeException('Invalid billing ID.');
-        }
-
-        $claim = $this->claims->findOneByBillingId($value);
-        if ($claim !== null) {
-            throw new \RuntimeException('That billing ID has already been used.');
-        }
-
-        return $value;
     }
 
     private static function validateAppointments(array $charges, array $unbilledAppointments): void

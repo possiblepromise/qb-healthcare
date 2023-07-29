@@ -118,6 +118,7 @@ final class ChargesRepository extends MongoRepository
         $data = $result->current();
 
         return new ClaimSummary(
+            billingId: sprintf('IN%08s', $ids[0]),
             payer: $data['_id'],
             client: $data['clientName'],
             billedAmount: (string) $data['billedAmount'],
@@ -186,17 +187,6 @@ final class ChargesRepository extends MongoRepository
         if (\count($charges) !== \count($claim->charges)) {
             throw new \RuntimeException('Not all charges could be matched.');
         }
-
-        usort($charges, static function (Charge $a, Charge $b): int {
-            if ($a->getServiceDate() < $b->getServiceDate()) {
-                return -1;
-            }
-            if ($a->getServiceDate() > $b->getServiceDate()) {
-                return 1;
-            }
-
-            return bccomp($a->getChargeLine(), $b->getChargeLine());
-        });
 
         return $charges;
     }

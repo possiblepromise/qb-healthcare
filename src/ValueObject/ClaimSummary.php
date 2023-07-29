@@ -9,6 +9,7 @@ use PossiblePromise\QbHealthcare\Entity\Charge;
 final class ClaimSummary
 {
     public function __construct(
+        private readonly string $billingId,
         private readonly string $payer,
         private readonly string $client,
         private readonly string $billedAmount,
@@ -19,6 +20,11 @@ final class ClaimSummary
         /** @var Charge[] */
         private readonly array $charges
     ) {
+    }
+
+    public function getBillingId(): string
+    {
+        return $this->billingId;
     }
 
     public function getPayer(): string
