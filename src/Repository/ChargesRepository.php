@@ -141,8 +141,12 @@ final class ChargesRepository extends MongoRepository
             /** @var Cursor $result */
             $result = $this->charges->aggregate([
                 self::getClaimsLookup(),
+                self::getAppointmentsLookup(),
                 ['$match' => [
                     'claims' => ['$size' => 0],
+                    'appointments' => [
+                        '$not' => ['$size' => 0],
+                    ],
                     'billedAmount' => new Decimal128($charge->billed),
                     'billedUnits' => $charge->units,
                     'serviceDate' => new UTCDateTime($charge->serviceDate),
@@ -289,6 +293,18 @@ final class ChargesRepository extends MongoRepository
                 'localField' => '_id',
                 'foreignField' => 'charges',
                 'as' => 'claims',
+            ],
+        ];
+    }
+
+    private static function getAppointmentsLookup(): array
+    {
+        return [
+            '$lookup' => [
+                'from' => 'completedAppointments',
+                'localField' => '_id',
+                'foreignField' => 'chargeId',
+                'as' => 'appointments',
             ],
         ];
     }
