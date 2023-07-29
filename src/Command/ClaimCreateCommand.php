@@ -132,7 +132,7 @@ final class ClaimCreateCommand extends Command
         foreach ($charges as $charge) {
             $table[] = [
                 $charge->getServiceDate()->format('Y-m-d'),
-                $this->items->get($charge->getService()->getQbItemId())->Name,
+                $charge->getService()->getName(),
                 $charge->getBilledUnits(),
                 $fmt->formatCurrency((float) $charge->getService()->getRate(), 'USD'),
                 $fmt->formatCurrency((float) $charge->getBilledAmount(), 'USD'),
