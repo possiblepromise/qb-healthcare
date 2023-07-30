@@ -55,6 +55,13 @@ final class Charge implements Persistable
         return $this->contractAmount;
     }
 
+    public function setContractAmount(string $contractAmount): self
+    {
+        $this->contractAmount = $contractAmount;
+
+        return $this;
+    }
+
     public function getBilledUnits(): int
     {
         return $this->billedUnits;

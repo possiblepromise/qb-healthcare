@@ -39,6 +39,11 @@ final class Service implements Persistable
         return $this->contractRate;
     }
 
+    public function setContractRate(string $contractRate): void
+    {
+        $this->contractRate = $contractRate;
+    }
+
     public function getQbItemId(): ?string
     {
         return $this->qbItemId;

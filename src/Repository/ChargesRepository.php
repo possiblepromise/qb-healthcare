@@ -13,7 +13,9 @@ use PossiblePromise\QbHealthcare\Database\MongoClient;
 use PossiblePromise\QbHealthcare\Edi\Edi837Claim;
 use PossiblePromise\QbHealthcare\Entity\Charge;
 use PossiblePromise\QbHealthcare\Entity\Claim;
+use PossiblePromise\QbHealthcare\Entity\Payer;
 use PossiblePromise\QbHealthcare\Entity\PaymentInfo;
+use PossiblePromise\QbHealthcare\Entity\Service;
 use PossiblePromise\QbHealthcare\QuickBooks;
 use PossiblePromise\QbHealthcare\Type\FilterableArray;
 use PossiblePromise\QbHealthcare\ValueObject\ChargeLine;
@@ -265,6 +267,20 @@ final class ChargesRepository extends MongoRepository
         ]);
 
         return FilterableArray::fromCursor($result);
+    }
+
+    /**
+     * @return Charge[]
+     */
+    public function findUnpaidFromPayerAndService(Payer $payer, Service $service)
+    {
+        /** @var Cursor $result */
+        $result = $this->unpaidCharges->find([
+            'primaryPaymentInfo.payer._id' => $payer->getId(),
+            'service._id' => $service->getBillingCode(),
+        ]);
+
+        return self::getArrayFromResult($result);
     }
 
     public function save(Charge $charge): void

@@ -5,12 +5,13 @@ declare(strict_types=1);
 namespace PossiblePromise\QbHealthcare\Repository;
 
 use MongoDB\Collection;
+use MongoDB\Driver\Cursor;
 use MongoDB\Model\BSONIterator;
 use PossiblePromise\QbHealthcare\Database\MongoClient;
 use PossiblePromise\QbHealthcare\Entity\Payer;
 use PossiblePromise\QbHealthcare\QuickBooks;
 
-final class PayersRepository
+final class PayersRepository extends MongoRepository
 {
     private Collection $payers;
 
@@ -80,5 +81,24 @@ final class PayersRepository
         }
 
         return $itemIds;
+    }
+
+    /**
+     * @return Payer[]
+     */
+    public function findAll(): array
+    {
+        /** @var Cursor $result */
+        $result = $this->payers->find();
+
+        return self::getArrayFromResult($result);
+    }
+
+    public function save(Payer $payer): void
+    {
+        $this->payers->updateOne(
+            ['_id' => $payer->getId()],
+            ['$set' => $payer]
+        );
     }
 }

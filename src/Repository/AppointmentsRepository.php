@@ -6,9 +6,12 @@ namespace PossiblePromise\QbHealthcare\Repository;
 
 use MongoDB\BSON\UTCDateTime;
 use MongoDB\Collection;
+use MongoDB\Driver\Cursor;
 use PossiblePromise\QbHealthcare\Database\MongoClient;
 use PossiblePromise\QbHealthcare\Entity\Appointment;
 use PossiblePromise\QbHealthcare\Entity\Charge;
+use PossiblePromise\QbHealthcare\Entity\Payer;
+use PossiblePromise\QbHealthcare\Entity\Service;
 use PossiblePromise\QbHealthcare\QuickBooks;
 use PossiblePromise\QbHealthcare\Type\FilterableArray;
 use PossiblePromise\QbHealthcare\ValueObject\AppointmentLine;
@@ -235,6 +238,30 @@ final class AppointmentsRepository extends MongoRepository
         return self::getArrayFromResult($result);
     }
 
+    /**
+     * @return Appointment[]
+     */
+    public function findUnpaidFromPayerAndService(Payer $payer, Service $service): array
+    {
+        /** @var Cursor $result */
+        $result = $this->appointments->aggregate([
+            self::getClaimsLookup(),
+            self::getPaymentsLookup(),
+            ['$match' => [
+                'payments' => ['$size' => 0],
+                'payer._id' => $payer->getId(),
+                'payer.services._id' => $service->getBillingCode(),
+            ]],
+            ['$project' => [
+                'claims' => 0,
+                'payments' => 0,
+            ]],
+            ['$sort' => self::getDefaultSort()],
+        ]);
+
+        return self::getArrayFromResult($result);
+    }
+
     public function getNextClaimDate(): ?\DateTime
     {
         $result = $this->completedAppointments->aggregate([
@@ -301,6 +328,14 @@ final class AppointmentsRepository extends MongoRepository
         return $appointment->getQbJournalEntryId();
     }
 
+    public function save(Appointment $appointment): void
+    {
+        $this->appointments->updateOne(
+            ['_id' => $appointment->getId()],
+            ['$set' => $appointment]
+        );
+    }
+
     private function matchCharge(Charge $charge): int
     {
         $appointments = $this->findByChargeData(
@@ -355,6 +390,18 @@ final class AppointmentsRepository extends MongoRepository
                 'localField' => 'chargeId',
                 'foreignField' => 'charges',
                 'as' => 'claims',
+            ],
+        ];
+    }
+
+    private static function getPaymentsLookup(): array
+    {
+        return [
+            '$lookup' => [
+                'from' => 'payments',
+                'localField' => 'claims._id',
+                'foreignField' => 'claims',
+                'as' => 'payments',
             ],
         ];
     }
