@@ -32,13 +32,11 @@ trait PaymentCreateTrait
         );
 
         if (bccomp($contractualAdjustment, $expectedContractualAdjustment, 2) !== 0) {
-            throw new PaymentCreationException(
-                sprintf(
-                    'This line includes a contractual adjustment of %s, but %s was expected.',
-                    $fmt->formatCurrency((float) $contractualAdjustment, 'USD'),
-                    $fmt->formatCurrency((float) $expectedContractualAdjustment, 'USD')
-                )
-            );
+            throw new PaymentCreationException(sprintf(
+                'This line includes a contractual adjustment of %s, but %s was expected.',
+                $fmt->formatCurrency((float) $contractualAdjustment, 'USD'),
+                $fmt->formatCurrency((float) $expectedContractualAdjustment, 'USD')
+            ));
         }
 
         $total = bcsub($chargeBilled, $contractualAdjustment, 2);
@@ -47,13 +45,11 @@ trait PaymentCreateTrait
         }
 
         if (bccomp($total, $chargePaid, 2) !== 0) {
-            throw new PaymentCreationException(
-                sprintf(
-                    'Adjustments add up to %s, but %s was expected.',
-                    $fmt->formatCurrency((float) bcsub($chargeBilled, $total, 2), 'USD'),
-                    $fmt->formatCurrency((float) bcsub($chargeBilled, $chargePaid, 2), 'USD')
-                )
-            );
+            throw new PaymentCreationException(sprintf(
+                'Adjustments add up to %s, but %s was expected.',
+                $fmt->formatCurrency((float) bcsub($chargeBilled, $total, 2), 'USD'),
+                $fmt->formatCurrency((float) bcsub($chargeBilled, $chargePaid, 2), 'USD')
+            ));
         }
     }
 
@@ -145,14 +141,18 @@ trait PaymentCreateTrait
                 $this->qb->getActiveCompany()->contractualAdjustmentItem,
                 $this->qb->getActiveCompany()->coinsuranceItem,
             ]);
+
             $io->text('Please select the item for interest payments.');
+
             $name = $io->choice(
                 'Interest item',
                 $items->map(static fn (IPPItem $item) => $item->FullyQualifiedName)
             );
+
             $interestItem = $items->selectOne(
                 static fn (IPPItem $item) => $item->FullyQualifiedName === $name
             );
+
             $this->qb->getActiveCompany()->interestItem = $interestItem->Id;
             $this->qb->save();
         }
@@ -167,14 +167,18 @@ trait PaymentCreateTrait
                 $this->qb->getActiveCompany()->coinsuranceItem,
                 $this->qb->getActiveCompany()->interestItem,
             ]);
+
             $io->text('Please select the item for origination fees.');
+
             $name = $io->choice(
                 'Origination fee item',
                 $items->map(static fn (IPPItem $item) => $item->FullyQualifiedName)
             );
+
             $originationFeeItem = $items->selectOne(
                 static fn (IPPItem $item) => $item->FullyQualifiedName === $name
             );
+
             $this->qb->getActiveCompany()->originationFeeItem = $originationFeeItem->Id;
             $this->qb->save();
         }
@@ -184,11 +188,13 @@ trait PaymentCreateTrait
     {
         $fmt = new \NumberFormatter('en_US', \NumberFormatter::CURRENCY);
         $creditMemoIds = $claim->getQbCreditMemoIds();
+
         $totalAdjustments = bcsub(
             $claim->getBilledAmount(),
             $claim->getPaymentInfo()->getPayment(),
             2
         );
+
         $contractualAdjustments = bcsub($claim->getBilledAmount(), $claim->getContractAmount(), 2);
         $coinsurance = $claim->getPaymentInfo()->getCoinsurance();
 
@@ -207,15 +213,9 @@ trait PaymentCreateTrait
 
                 $creditedAdjustments = bcadd($creditedAdjustments, (string) $line->Amount, 2);
 
-                if ($line->SalesItemLineDetail->ItemRef === $this->qb->getActiveCompany(
-                )->contractualAdjustmentItem) {
-                    $creditedContractualAdjustments = bcadd(
-                        $creditedContractualAdjustments,
-                        (string) $line->Amount,
-                        2
-                    );
-                } elseif ($line->SalesItemLineDetail->ItemRef === $this->qb->getActiveCompany(
-                )->coinsuranceItem) {
+                if ($line->SalesItemLineDetail->ItemRef === $this->qb->getActiveCompany()->contractualAdjustmentItem) {
+                    $creditedContractualAdjustments = bcadd($creditedContractualAdjustments, (string) $line->Amount, 2);
+                } elseif ($line->SalesItemLineDetail->ItemRef === $this->qb->getActiveCompany()->coinsuranceItem) {
                     $creditedCoinsurance = bcadd($creditedCoinsurance, (string) $line->Amount, 2);
                 } else {
                     $item = $this->items->get($line->SalesItemLineDetail->ItemRef);
@@ -228,57 +228,47 @@ trait PaymentCreateTrait
         }
 
         if (bccomp($contractualAdjustments, $creditedContractualAdjustments, 2) !== 0) {
-            throw new PaymentCreationException(
-                sprintf(
-                    'The contractual adjustment is %s, but %s of contractual adjustments were credited.',
-                    $fmt->formatCurrency((float) $contractualAdjustments, 'USD'),
-                    $fmt->formatCurrency((float) $creditedContractualAdjustments, 'USD')
-                )
-            );
+            throw new PaymentCreationException(sprintf(
+                'The contractual adjustment is %s, but %s of contractual adjustments were credited.',
+                $fmt->formatCurrency((float) $contractualAdjustments, 'USD'),
+                $fmt->formatCurrency((float) $creditedContractualAdjustments, 'USD')
+            ));
         }
 
         if (bccomp($coinsurance, $creditedCoinsurance, 2) === -1) {
-            throw new PaymentCreationException(
-                sprintf(
-                    'A coinsurance of %s was expected, but %s was credited.',
-                    $fmt->formatCurrency((float) $coinsurance, 'USD'),
-                    $fmt->formatCurrency((float) $creditedCoinsurance, 'USD')
-                )
-            );
+            throw new PaymentCreationException(sprintf(
+                'A coinsurance of %s was expected, but %s was credited.',
+                $fmt->formatCurrency((float) $coinsurance, 'USD'),
+                $fmt->formatCurrency((float) $creditedCoinsurance, 'USD')
+            ));
         }
         if (bccomp($coinsurance, $creditedCoinsurance, 2) === 1) {
             if (bccomp($creditedCoinsurance, '0.00', 2) !== 0) {
-                throw new PaymentCreationException(
-                    sprintf(
-                        'A coinsurance of %s is unexpected, but %s has already been credited. We cannot yet handle this condition.',
-                        $fmt->formatCurrency((float) $coinsurance, 'USD'),
-                        $fmt->formatCurrency((float) $creditedCoinsurance, 'USD')
-                    )
-                );
+                throw new PaymentCreationException(sprintf(
+                    'A coinsurance of %s is unexpected, but %s has already been credited. We cannot yet handle this condition.',
+                    $fmt->formatCurrency((float) $coinsurance, 'USD'),
+                    $fmt->formatCurrency((float) $creditedCoinsurance, 'USD')
+                ));
             }
 
             $charges = $this->charges->findByClaim($claim);
             $creditMemo = $this->creditMemos->createCoinsuranceCredit($claim, $charges);
-            $io->text(
-                sprintf(
-                    'Created credit memo %s for %s',
-                    $creditMemo->DocNumber,
-                    $fmt->formatCurrency((float) $creditMemo->TotalAmt, 'USD')
-                )
-            );
+            $io->text(sprintf(
+                'Created credit memo %s for %s',
+                $creditMemo->DocNumber,
+                $fmt->formatCurrency((float) $creditMemo->TotalAmt, 'USD')
+            ));
 
             $claim->addQbCreditMemo($creditMemo);
             $this->claims->save($claim);
 
             $creditedCoinsurance = bcadd($creditedCoinsurance, (string) $creditMemo->TotalAmt, 2);
             if (bccomp($coinsurance, $creditedCoinsurance, 2) !== 0) {
-                throw new PaymentCreationException(
-                    sprintf(
-                        'Expected coinsurance of %s, but got %s.',
-                        $fmt->formatCurrency((float) $coinsurance, 'USD'),
-                        $fmt->formatCurrency((float) $creditedCoinsurance, 'USD')
-                    )
-                );
+                throw new PaymentCreationException(sprintf(
+                    'Expected coinsurance of %s, but got %s.',
+                    $fmt->formatCurrency((float) $coinsurance, 'USD'),
+                    $fmt->formatCurrency((float) $creditedCoinsurance, 'USD')
+                ));
             }
 
             $creditedAdjustments = bcadd($creditedAdjustments, (string) $creditMemo->TotalAmt, 2);
@@ -287,13 +277,11 @@ trait PaymentCreateTrait
         }
 
         if (bccomp($totalAdjustments, $creditedAdjustments, 2) !== 0) {
-            throw new PaymentCreationException(
-                sprintf(
-                    'Expected total adjustments of %s, but adjustments of %s were encountered.',
-                    $fmt->formatCurrency((float) $totalAdjustments, 'USD'),
-                    $fmt->formatCurrency((float) $creditedAdjustments, 'USD')
-                )
-            );
+            throw new PaymentCreationException(sprintf(
+                'Expected total adjustments of %s, but adjustments of %s were encountered.',
+                $fmt->formatCurrency((float) $totalAdjustments, 'USD'),
+                $fmt->formatCurrency((float) $creditedAdjustments, 'USD')
+            ));
         }
     }
 
@@ -303,14 +291,12 @@ trait PaymentCreateTrait
 
         $invoice = $this->invoices->get($claim->getQbInvoiceId());
         if (bccomp((string) $invoice->TotalAmt, $claim->getBilledAmount(), 2) !== 0) {
-            throw new PaymentCreationException(
-                sprintf(
-                    'QuickBooks invoice %s is for the amount of %s, but %s was expected.',
-                    $invoice->DocNumber,
-                    $fmt->formatCurrency((float) $invoice->TotalAmt, 'USD'),
-                    $fmt->formatCurrency((float) $claim->getBilledAmount(), 'USD')
-                )
-            );
+            throw new PaymentCreationException(sprintf(
+                'QuickBooks invoice %s is for the amount of %s, but %s was expected.',
+                $invoice->DocNumber,
+                $fmt->formatCurrency((float) $invoice->TotalAmt, 'USD'),
+                $fmt->formatCurrency((float) $claim->getBilledAmount(), 'USD')
+            ));
         }
     }
 
