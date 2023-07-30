@@ -24,6 +24,7 @@ use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
+use Symfony\Component\Filesystem\Filesystem;
 
 #[AsCommand(
     name: 'payment:create',
@@ -32,6 +33,8 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 final class PaymentCreateCommand extends Command
 {
     use PaymentCreateTrait;
+
+    private const PROCESSED_PAYMENTS_PATH = 'var/processed/payments';
 
     /**
      * Caches the charges to be updated so they can be restored if needed.
@@ -137,6 +140,8 @@ final class PaymentCreateCommand extends Command
 
         $io->success(sprintf('Payment %s has been processed successfully.', $payment->paymentRef));
 
+        self::moveProcessedPayment($file);
+
         return Command::SUCCESS;
     }
 
@@ -231,5 +236,16 @@ final class PaymentCreateCommand extends Command
         foreach ($this->cachedCharges as $charge) {
             $this->charges->save($charge);
         }
+    }
+
+    private static function moveProcessedPayment(string $file): void
+    {
+        $fileSystem = new Filesystem();
+
+        if (!$fileSystem->exists(self::PROCESSED_PAYMENTS_PATH)) {
+            $fileSystem->mkdir(self::PROCESSED_PAYMENTS_PATH);
+        }
+
+        $fileSystem->rename($file, self::PROCESSED_PAYMENTS_PATH . '/' . basename($file));
     }
 }
