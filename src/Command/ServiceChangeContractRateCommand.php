@@ -101,7 +101,11 @@ final class ServiceChangeContractRateCommand extends Command
             $this->appointments->save($appointment);
         }
 
-        $io->success(sprintf('Updated %d appointments', \count($appointments)));
+        $io->success(\MessageFormatter::formatMessage(
+            'en_US',
+            '{0, plural, one {Updated # appointment} other {Updated # appointments}}',
+            [\count($appointments)]
+        ));
 
         $charges = $this->charges->findUnpaidFromPayerAndService($payer, $service);
 
@@ -114,7 +118,11 @@ final class ServiceChangeContractRateCommand extends Command
             $this->charges->save($charge);
         }
 
-        $io->success(sprintf('Updated %d charges', \count($charges)));
+        $io->success(\MessageFormatter::formatMessage(
+            'en_US',
+            '{0, plural, one {Updated # charge} other {Updated # charges}}',
+            [\count($charges)]
+        ));
 
         $claims = $this->claims->findByCharges($charges);
         $updateCount = 0;
