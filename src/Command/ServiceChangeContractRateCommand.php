@@ -79,6 +79,7 @@ final class ServiceChangeContractRateCommand extends Command
             ['Current contract rate' => $fmt->formatCurrency((float) $service->getContractRate(), 'USD')]
         );
 
+        /** @var string $newContractRate */
         $newContractRate = $io->ask('New contract rate', null, static function (string $value): string {
             if (!is_numeric($value)) {
                 throw new \RuntimeException('Value must be a valid number.');
