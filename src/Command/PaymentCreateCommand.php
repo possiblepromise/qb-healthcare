@@ -22,6 +22,7 @@ use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Filesystem\Filesystem;
@@ -61,6 +62,7 @@ final class PaymentCreateCommand extends Command
         $this
             ->setHelp('Allows you to create a payment, by processing an ERA 835 document.')
             ->addArgument('eraFile', InputArgument::REQUIRED, 'ERA 835 file to read')
+            ->addOption('restore', null, InputOption::VALUE_NONE, 'Restore the charges in the payment in case something goes wrong')
         ;
     }
 
@@ -87,14 +89,24 @@ final class PaymentCreateCommand extends Command
             return Command::INVALID;
         }
 
+        $restore = $input->getOption('restore');
+
         /** @var Claim[] $claims */
         $claims = [];
         $unfinishedClaimIds = [];
 
         try {
             foreach ($payment->claims as $claim) {
-                $claim = $this->processClaim($payment->paymentRef, $payment->paymentDate, $claim);
+                $claim = $this->processClaim($payment->paymentRef, $payment->paymentDate, $claim, $restore);
                 $unfinishedKey = array_search($claim->getBillingId(), $unfinishedClaimIds, true);
+
+                if ($restore === true) {
+                    if ($unfinishedKey === false) {
+                        $unfinishedClaimIds[] = $claim->getBillingId();
+                    }
+
+                    continue;
+                }
 
                 if (bccomp($claim->getBalance(), '0.00', 2) === 0) {
                     $claims[] = $claim;
@@ -111,6 +123,16 @@ final class PaymentCreateCommand extends Command
             $io->error($e->getMessage());
 
             return Command::FAILURE;
+        }
+
+        if ($restore === true) {
+            $io->success(\MessageFormatter::formatMessage(
+                'en_US',
+                '{0, plural, one {# claim was restored} other {# claims were restored}}',
+                [\count($unfinishedClaimIds)]
+            ));
+
+            return Command::SUCCESS;
         }
 
         if (!empty($unfinishedClaimIds)) {
@@ -145,7 +167,7 @@ final class PaymentCreateCommand extends Command
         return Command::SUCCESS;
     }
 
-    private function processClaim(string $paymentRef, \DateTimeImmutable $paymentDate, Edi835ClaimPayment $claim): ?Claim
+    private function processClaim(string $paymentRef, \DateTimeImmutable $paymentDate, Edi835ClaimPayment $claim, bool $restore = false): ?Claim
     {
         $charges = [];
 
@@ -155,7 +177,8 @@ final class PaymentCreateCommand extends Command
                 $paymentDate,
                 $claim->clientLastName,
                 $claim->clientFirstName,
-                $chargePayment
+                $chargePayment,
+                $restore
             );
         }
 
@@ -185,7 +208,8 @@ final class PaymentCreateCommand extends Command
         \DateTimeImmutable $paymentDate,
         ?string $lastName,
         ?string $firstName,
-        Edi835ChargePayment $chargePayment
+        Edi835ChargePayment $chargePayment,
+        bool $restore = false
     ): Charge {
         $charges = $this->charges->findBySvcData(
             billingCode: $chargePayment->billingCode,
@@ -213,6 +237,21 @@ final class PaymentCreateCommand extends Command
             $chargePayment->billed,
             $chargePayment->paid
         );
+
+        if ($restore === true) {
+            $charge
+                ->setPayerBalance($charge->getBilledAmount())
+                ->getPrimaryPaymentInfo()
+                ->setPaymentDate(null)
+                ->setPaymentRef(null)
+                ->setPayment(null)
+                ->setCoinsurance('0.00')
+            ;
+
+            $this->charges->save($charge);
+
+            return $charge;
+        }
 
         // Cache the existing charge in case there are any errors
         $this->cachedCharges[] = clone $charge;

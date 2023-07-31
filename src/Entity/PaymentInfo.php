@@ -37,7 +37,7 @@ final class PaymentInfo implements Persistable
         return $this->paymentDate;
     }
 
-    public function setPaymentDate(\DateTimeInterface $paymentDate): self
+    public function setPaymentDate(?\DateTimeInterface $paymentDate): self
     {
         $this->paymentDate = $paymentDate;
 
@@ -49,7 +49,7 @@ final class PaymentInfo implements Persistable
         return $this->payment;
     }
 
-    public function setPayment(string $payment): self
+    public function setPayment(?string $payment): self
     {
         $this->payment = $payment;
 
@@ -61,7 +61,7 @@ final class PaymentInfo implements Persistable
         return $this->paymentRef;
     }
 
-    public function setPaymentRef(string $paymentRef): self
+    public function setPaymentRef(?string $paymentRef): self
     {
         $this->paymentRef = $paymentRef;
 
