@@ -201,6 +201,29 @@ final class AppointmentsRepository extends MongoRepository
     /**
      * @return Appointment[]
      */
+    public function findReconcilable(?\DateTimeInterface $endDate = null): array
+    {
+        $matchQuery = [
+            'qbJournalEntryId' => ['$ne' => null],
+        ];
+
+        if ($endDate !== null) {
+            $matchQuery['serviceDate'] = [
+                '$lte' => new UTCDateTime($endDate),
+            ];
+        }
+
+        $result = $this->completedAppointments->aggregate([
+            ['$match' => $matchQuery],
+            ['$sort' => self::getDefaultSort()],
+        ]);
+
+        return self::getArrayFromResult($result);
+    }
+
+    /**
+     * @return Appointment[]
+     */
     public function findIncomplete(): array
     {
         $result = $this->appointments->aggregate([
