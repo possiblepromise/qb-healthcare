@@ -6,10 +6,13 @@ declare(strict_types=1);
 
 namespace PossiblePromise\QbHealthcare\Command;
 
+use PossiblePromise\QbHealthcare\Entity\Charge;
 use PossiblePromise\QbHealthcare\Entity\Payer;
 use PossiblePromise\QbHealthcare\Entity\Service;
 use PossiblePromise\QbHealthcare\Repository\AppointmentsRepository;
 use PossiblePromise\QbHealthcare\Repository\ChargesRepository;
+use PossiblePromise\QbHealthcare\Repository\ClaimsRepository;
+use PossiblePromise\QbHealthcare\Repository\CreditMemosRepository;
 use PossiblePromise\QbHealthcare\Repository\PayersRepository;
 use PossiblePromise\QbHealthcare\Type\FilterableArray;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -24,8 +27,13 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 )]
 final class ServiceChangeContractRateCommand extends Command
 {
-    public function __construct(private PayersRepository $payers, private AppointmentsRepository $appointments, private ChargesRepository $charges)
-    {
+    public function __construct(
+        private PayersRepository $payers,
+        private AppointmentsRepository $appointments,
+        private ChargesRepository $charges,
+        private ClaimsRepository $claims,
+        private CreditMemosRepository $creditMemos
+    ) {
         parent::__construct();
     }
 
@@ -106,6 +114,28 @@ final class ServiceChangeContractRateCommand extends Command
         }
 
         $io->success(sprintf('Updated %d charges', \count($charges)));
+
+        $claims = $this->claims->findByCharges($charges);
+        $updateCount = 0;
+
+        foreach ($claims as $claim) {
+            foreach ($claim->getQbCreditMemoIds() as $creditMemoId) {
+                $claimCharges = array_filter(
+                    $charges,
+                    static fn (Charge $charge): bool => \in_array($charge->getChargeLine(), $claim->getCharges(), true)
+                );
+
+                $creditMemo = $this->creditMemos->updateContractRate($creditMemoId, $newContractRate, $claimCharges);
+                $io->text('Updated credit memo ' . $creditMemo->DocNumber);
+                ++$updateCount;
+            }
+        }
+
+        $io->success(\MessageFormatter::formatMessage(
+            'en_US',
+            '{0, plural, one {Updated # credit memo} other {Updated # credit memos}}',
+            [$updateCount]
+        ));
 
         return Command::SUCCESS;
     }

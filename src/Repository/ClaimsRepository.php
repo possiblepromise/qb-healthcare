@@ -7,6 +7,7 @@ namespace PossiblePromise\QbHealthcare\Repository;
 use MongoDB\BSON\Decimal128;
 use MongoDB\BSON\UTCDateTime;
 use MongoDB\Collection;
+use MongoDB\Driver\Cursor;
 use PossiblePromise\QbHealthcare\Database\MongoClient;
 use PossiblePromise\QbHealthcare\Entity\Charge;
 use PossiblePromise\QbHealthcare\Entity\Claim;
@@ -65,6 +66,23 @@ final class ClaimsRepository extends MongoRepository
                 '$all' => array_map(static fn (Charge $charge): string => $charge->getChargeLine(), $charges),
             ],
         ]);
+    }
+
+    /**
+     * @param Charge[] $charges
+     *
+     * @return Claim[]
+     */
+    public function findByCharges(array $charges): array
+    {
+        /** @var Cursor $result */
+        $result = $this->claims->find([
+            'charges' => [
+                '$in' => array_map(static fn (Charge $charge): string => $charge->getChargeLine(), $charges),
+            ],
+        ]);
+
+        return self::getArrayFromResult($result);
     }
 
     public function save(Claim $claim): void

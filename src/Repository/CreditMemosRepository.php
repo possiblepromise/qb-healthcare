@@ -141,6 +141,52 @@ final class CreditMemosRepository
         return $this->getDataService()->add($creditMemo);
     }
 
+    /**
+     * @param Charge[] $charges
+     */
+    public function updateContractRate(string $creditMemoId, string $newContractRate, array $charges): IPPCreditMemo
+    {
+        $creditMemo = $this->get($creditMemoId);
+
+        $nextLineNum = 1;
+        $lines = [];
+
+        /** @var IPPLine $line */
+        foreach ($creditMemo->Line as $line) {
+            if ($line->DetailType === 'SubTotalLineDetail') {
+                continue;
+            }
+            if ($line->DetailType === 'SalesItemLineDetail' && $line->SalesItemLineDetail->ItemRef === $this->qb->getActiveCompany()->contractualAdjustmentItem) {
+                continue;
+            }
+
+            $line->LineNum = $nextLineNum;
+            $lines[] = $line;
+            ++$nextLineNum;
+        }
+
+        foreach ($charges as $charge) {
+            $lines[] = self::createCreditMemoLine(
+                lineNum: $nextLineNum,
+                serviceDate: $charge->getServiceDate(),
+                itemId: $this->qb->getActiveCompany()->contractualAdjustmentItem,
+                description: $charge->getChargeLine(),
+                quantity: $charge->getBilledUnits(),
+                unitPrice: bcsub($charge->getService()->getRate(), $newContractRate, 2)
+            );
+
+            ++$nextLineNum;
+        }
+
+        $updatedCreditMemo = CreditMemo::update($creditMemo, [
+            'sparse' => true,
+            'Line' => $lines,
+        ]);
+
+        /** @noinspection PhpIncompatibleReturnTypeInspection */
+        return $this->getDataService()->Update($updatedCreditMemo);
+    }
+
     private function createCreditMemoLineFromCharge(int $lineNum, Charge $charge): IPPLine
     {
         $service = $charge->getPrimaryPaymentInfo()->getPayer()->getServices()[0];
