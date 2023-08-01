@@ -15,6 +15,7 @@ use PossiblePromise\QbHealthcare\Entity\Service;
 use PossiblePromise\QbHealthcare\QuickBooks;
 use PossiblePromise\QbHealthcare\Type\FilterableArray;
 use PossiblePromise\QbHealthcare\ValueObject\AppointmentLine;
+use PossiblePromise\QbHealthcare\ValueObject\ClientRevenue;
 use PossiblePromise\QbHealthcare\ValueObject\ImportedRecords;
 use QuickBooksOnline\API\Data\IPPJournalEntry;
 
@@ -365,6 +366,46 @@ final class AppointmentsRepository extends MongoRepository
             ['_id' => $appointment->getId()],
             ['$set' => $appointment]
         );
+    }
+
+    /**
+     * @return ClientRevenue[]
+     */
+    public function getClientRevenue(\DateTimeInterface $endDate): array
+    {
+        $startDate = \DateTimeImmutable::createFromInterface($endDate)
+            ->modify('first day of this month midnight')
+        ;
+
+        /** @var Cursor $startDate */
+        $result = $this->completedAppointments->aggregate([
+            ['$unwind' => '$payer.services'],
+            ['$match' => [
+                'serviceDate' => [
+                    '$gte' => new UTCDateTime($startDate),
+                    '$lte' => new UTCDateTime($endDate),
+                ],
+            ]],
+            ['$group' => [
+                '_id' => '$clientName',
+                'revenue' => [
+                    '$sum' => [
+                        '$multiply' => ['$units', '$payer.services.contractRate'],
+                    ],
+                ],
+            ]],
+            ['$sort' => [
+                '_id' => 1,
+            ]],
+        ]);
+
+        $clientRevenueResults = [];
+
+        foreach ($result as $item) {
+            $clientRevenueResults[] = new ClientRevenue($item['_id'], (string) $item['revenue']);
+        }
+
+        return $clientRevenueResults;
     }
 
     private function matchCharge(Charge $charge): int
