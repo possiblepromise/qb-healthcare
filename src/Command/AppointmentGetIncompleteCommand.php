@@ -9,6 +9,7 @@ namespace PossiblePromise\QbHealthcare\Command;
 use PossiblePromise\QbHealthcare\Repository\AppointmentsRepository;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
@@ -28,6 +29,7 @@ final class AppointmentGetIncompleteCommand extends Command
     {
         $this
             ->setHelp('Allows you to retrieve the total of all incomplete appointments.')
+            ->addArgument('endDate', InputArgument::OPTIONAL, 'Only retrieve incomplete appointments up to the given date')
         ;
     }
 
@@ -37,7 +39,12 @@ final class AppointmentGetIncompleteCommand extends Command
 
         $io->title('Incomplete Appointments');
 
-        $incompleteAppointments = $this->appointments->findIncomplete();
+        $endDate = new \DateTimeImmutable('today');
+        if ($input->getArgument('endDate') !== null) {
+            $endDate = new \DateTimeImmutable($input->getArgument('endDate'));
+        }
+
+        $incompleteAppointments = $this->appointments->findIncomplete($endDate);
 
         if (empty($incompleteAppointments)) {
             $io->success('There are currently no incomplete appointments.');

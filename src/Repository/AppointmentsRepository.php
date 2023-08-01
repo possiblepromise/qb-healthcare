@@ -224,12 +224,20 @@ final class AppointmentsRepository extends MongoRepository
     /**
      * @return Appointment[]
      */
-    public function findIncomplete(): array
+    public function findIncomplete(?\DateTimeInterface $endDate = null): array
     {
+        $matchQuery = [
+            'completed' => false,
+        ];
+
+        if ($endDate !== null) {
+            $matchQuery['serviceDate'] = [
+                '$lte' => new UTCDateTime($endDate),
+            ];
+        }
+
         $result = $this->appointments->aggregate([
-            ['$match' => [
-                'completed' => false,
-            ]],
+            ['$match' => $matchQuery],
             ['$sort' => self::getDefaultSort()],
         ]);
 
