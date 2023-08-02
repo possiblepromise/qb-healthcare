@@ -10,6 +10,7 @@ use PossiblePromise\QbHealthcare\Repository\AppointmentsRepository;
 use PossiblePromise\QbHealthcare\ValueObject\ClientRevenue;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -30,7 +31,7 @@ final class ClientRevenueCommand extends Command
     {
         $this
             ->setHelp('Generates a report of the revenue earned per client.')
-            ->addOption('startMonth', null, InputOption::VALUE_REQUIRED, 'The month to start the report')
+            ->addArgument('startMonth', InputArgument::OPTIONAL, 'The month to start the report')
             ->addOption('export', null, InputOption::VALUE_REQUIRED, 'File to export the report to')
         ;
     }
@@ -43,8 +44,8 @@ final class ClientRevenueCommand extends Command
 
         $endDate = new \DateTimeImmutable('last day of last month midnight');
         $startDate = $endDate;
-        if ($input->getOption('startMonth')) {
-            $startDate = (new \DateTimeImmutable($input->getOption('startMonth')))
+        if ($input->getArgument('startMonth')) {
+            $startDate = (new \DateTimeImmutable($input->getArgument('startMonth')))
                 ->modify('last day of this month midnight')
             ;
 
