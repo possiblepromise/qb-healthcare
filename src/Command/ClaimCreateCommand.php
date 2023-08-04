@@ -58,7 +58,7 @@ final class ClaimCreateCommand extends Command
     {
         $this
             ->setHelp('Allows you to create a claim.')
-            ->addArgument('837', InputArgument::OPTIONAL, 'EDI 837 file to read.')
+            ->addArgument('edi837', InputArgument::OPTIONAL, 'EDI 837 file to read.')
             ->addOption('show-charges', null, InputOption::VALUE_NONE, 'Whether to show claim charges as part of the summary')
             ->addOption('copy', null, InputOption::VALUE_NONE, 'Copies the Billing ID to clipboard (works only on MacOS)')
         ;
@@ -77,7 +77,7 @@ final class ClaimCreateCommand extends Command
             return Command::SUCCESS;
         }
 
-        $file = $input->getArgument('837');
+        $file = $input->getArgument('edi837');
         if ($file === null) {
             $io->success('The next claim is from ' . $nextClaim->format('Y-m-d'));
 
