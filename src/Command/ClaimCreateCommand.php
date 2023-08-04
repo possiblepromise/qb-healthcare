@@ -59,6 +59,7 @@ final class ClaimCreateCommand extends Command
         $this
             ->setHelp('Allows you to create a claim.')
             ->addArgument('edi837', InputArgument::OPTIONAL, 'EDI 837 file to read.')
+            ->addOption('directory', null, InputOption::VALUE_REQUIRED, 'The directory to read 837 files from')
             ->addOption('show-charges', null, InputOption::VALUE_NONE, 'Whether to show claim charges as part of the summary')
             ->addOption('copy', null, InputOption::VALUE_NONE, 'Copies the Billing ID to clipboard (works only on MacOS)')
         ;
@@ -78,13 +79,34 @@ final class ClaimCreateCommand extends Command
         }
 
         $file = $input->getArgument('edi837');
-        if ($file === null) {
+        $directory = $input->getOption('directory');
+
+        if ($file !== null) {
+            $edi = new Edi837Reader($file);
+        } elseif ($directory !== null) {
+            $files = glob("{$directory}/*.txt");
+            natsort($files);
+
+            foreach ($files as $file) {
+                try {
+                    $edi = new Edi837Reader($file);
+                    break;
+                } catch (\Exception) {
+                    continue;
+                }
+            }
+
+            if (!isset($edi)) {
+                $io->error('No valid EDI 837 files were found.');
+
+                return Command::INVALID;
+            }
+        } else {
             $io->success('The next claim is from ' . $nextClaim->format('Y-m-d'));
 
             return Command::SUCCESS;
         }
 
-        $edi = new Edi837Reader($file);
         $claims = $edi->process();
 
         try {
