@@ -132,4 +132,44 @@ final class ClaimsRepository extends MongoRepository
             'billingId' => $billingId,
         ]);
     }
+
+    /**
+     * @return Claim[]
+     */
+    public function findUnpaid(?\DateTimeInterface $endDate = null): array
+    {
+        $matchQuery = [
+            'status' => ClaimStatus::processed,
+            'qbCompanyId' => $this->getActiveCompanyId(),
+        ];
+
+        if ($endDate !== null) {
+            $matchQuery['paymentInfo.billedDate'] = [
+                '$lte' => new UTCDateTime($endDate),
+            ];
+            $matchQuery['$or'] = [
+                [
+                    'paymentInfo.paymentDate' => null,
+                ],
+                [
+                    'paymentInfo.paymentDate' => [
+                        '$gt' => new UTCDateTime($endDate),
+                    ],
+                ],
+            ];
+
+            unset($matchQuery['status']);
+        }
+
+        /** @var Cursor $result */
+        $result = $this->claims->aggregate([
+            ['$match' => $matchQuery],
+            ['$sort' => [
+                'paymentInfo.billedDate' => 1,
+                'billingId' => 1,
+            ]],
+        ]);
+
+        return self::getArrayFromResult($result);
+    }
 }
