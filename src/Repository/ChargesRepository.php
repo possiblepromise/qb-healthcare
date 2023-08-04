@@ -159,6 +159,7 @@ final class ChargesRepository extends MongoRepository
                     'primaryPaymentInfo.payer._id' => $claim->payerId,
                     'primaryPaymentInfo.billedDate' => new UTCDateTime($claim->billedDate),
                     'service._id' => $charge->billingCode,
+                    'qbCompanyId' => $this->getActiveCompanyId(),
                 ]],
             ]);
 
