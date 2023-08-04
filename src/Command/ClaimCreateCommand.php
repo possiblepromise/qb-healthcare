@@ -26,6 +26,7 @@ use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Filesystem\Filesystem;
@@ -58,6 +59,7 @@ final class ClaimCreateCommand extends Command
         $this
             ->setHelp('Allows you to create a claim.')
             ->addArgument('837', InputArgument::OPTIONAL, 'EDI 837 file to read.')
+            ->addOption('show-charges', null, InputOption::VALUE_NONE, 'Whether to show claim charges as part of the summary')
         ;
     }
 
@@ -86,7 +88,11 @@ final class ClaimCreateCommand extends Command
 
         try {
             foreach ($claims as $claim) {
-                $this->processClaim($claim, $io);
+                $this->processClaim(
+                    $claim,
+                    $input->getOption('show-charges'),
+                    $io
+                );
             }
         } catch (\Exception $e) {
             $io->error($e->getMessage());
@@ -99,7 +105,7 @@ final class ClaimCreateCommand extends Command
         return Command::SUCCESS;
     }
 
-    private function processClaim(Edi837Claim $claim, SymfonyStyle $io): void
+    private function processClaim(Edi837Claim $claim, bool $showCharges, SymfonyStyle $io): void
     {
         $fmt = new \NumberFormatter('en_US', \NumberFormatter::CURRENCY);
 
@@ -129,24 +135,9 @@ final class ClaimCreateCommand extends Command
 
         $charges = $summary->getCharges();
 
-        $io->section('Claim Charges');
-
-        $table = [];
-
-        foreach ($charges as $charge) {
-            $table[] = [
-                $charge->getServiceDate()->format('Y-m-d'),
-                $charge->getService()->getName(),
-                $charge->getBilledUnits(),
-                $fmt->formatCurrency((float) $charge->getService()->getRate(), 'USD'),
-                $fmt->formatCurrency((float) $charge->getBilledAmount(), 'USD'),
-            ];
+        if ($showCharges === true) {
+            self::showCharges($charges, $io);
         }
-
-        $io->table(
-            ['Date', 'Service', 'Billed Units', 'Rate', 'Total'],
-            $table
-        );
 
         $io->text('If this looks good, this claim will be imported into QuickBooks.');
         if (!$io->confirm('Continue?')) {
@@ -196,6 +187,33 @@ final class ClaimCreateCommand extends Command
         }
 
         $io->success(sprintf('Claim %s has been processed successfully.', $claim->getBillingId()));
+    }
+
+    /**
+     * @param Charge[] $charges
+     */
+    private static function showCharges(array $charges, SymfonyStyle $io): void
+    {
+        $fmt = new \NumberFormatter('en_US', \NumberFormatter::CURRENCY);
+
+        $io->section('Claim Charges');
+
+        $table = [];
+
+        foreach ($charges as $charge) {
+            $table[] = [
+                $charge->getServiceDate()->format('Y-m-d'),
+                $charge->getService()->getName(),
+                $charge->getBilledUnits(),
+                $fmt->formatCurrency((float) $charge->getService()->getRate(), 'USD'),
+                $fmt->formatCurrency((float) $charge->getBilledAmount(), 'USD'),
+            ];
+        }
+
+        $io->table(
+            ['Date', 'Service', 'Billed Units', 'Rate', 'Total'],
+            $table
+        );
     }
 
     private static function validateAppointments(array $charges, array $unbilledAppointments): void
