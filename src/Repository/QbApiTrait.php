@@ -31,4 +31,9 @@ trait QbApiTrait
             $error->getIntuitErrorCode() . ': ' . $error->getIntuitErrorMessage()
         );
     }
+
+    private function getActiveCompanyId(): string
+    {
+        return $this->qb->getActiveCompany()->realmId;
+    }
 }

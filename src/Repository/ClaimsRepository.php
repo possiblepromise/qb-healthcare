@@ -49,7 +49,7 @@ final class ClaimsRepository extends MongoRepository
             charges: (new FilterableArray($charges))->map(static fn (Charge $charge) => $charge->getChargeLine())
         );
 
-        $claim->setQbCompanyId($this->qb->getActiveCompany()->realmId);
+        $claim->setQbCompanyId($this->getActiveCompanyId());
 
         $this->claimData->insertOne($claim);
 

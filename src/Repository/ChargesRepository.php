@@ -68,7 +68,7 @@ final class ChargesRepository extends MongoRepository
                 payerBalance: $line->billedAmount
             );
 
-            $charge->setQbCompanyId($this->qb->getActiveCompany(true)->realmId);
+            $charge->setQbCompanyId($this->getActiveCompanyId());
 
             $result = $this->charges->updateOne(
                 ['_id' => $charge->getChargeLine()],
