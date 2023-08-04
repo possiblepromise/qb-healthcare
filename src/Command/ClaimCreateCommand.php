@@ -60,6 +60,7 @@ final class ClaimCreateCommand extends Command
             ->setHelp('Allows you to create a claim.')
             ->addArgument('837', InputArgument::OPTIONAL, 'EDI 837 file to read.')
             ->addOption('show-charges', null, InputOption::VALUE_NONE, 'Whether to show claim charges as part of the summary')
+            ->addOption('copy', null, InputOption::VALUE_NONE, 'Copies the Billing ID to clipboard (works only on MacOS)')
         ;
     }
 
@@ -91,6 +92,7 @@ final class ClaimCreateCommand extends Command
                 $this->processClaim(
                     $claim,
                     $input->getOption('show-charges'),
+                    $input->getOption('copy'),
                     $io
                 );
             }
@@ -105,7 +107,7 @@ final class ClaimCreateCommand extends Command
         return Command::SUCCESS;
     }
 
-    private function processClaim(Edi837Claim $claim, bool $showCharges, SymfonyStyle $io): void
+    private function processClaim(Edi837Claim $claim, bool $showCharges, bool $copyBillingId, SymfonyStyle $io): void
     {
         $fmt = new \NumberFormatter('en_US', \NumberFormatter::CURRENCY);
 
@@ -118,6 +120,10 @@ final class ClaimCreateCommand extends Command
             throw new \RuntimeException(
                 'The total of the provided claim file does not match the total of the matched charges.'
             );
+        }
+
+        if ($copyBillingId) {
+            self::copyBillingId($summary->getBillingId());
         }
 
         $io->definitionList(
@@ -187,6 +193,12 @@ final class ClaimCreateCommand extends Command
         }
 
         $io->success(sprintf('Claim %s has been processed successfully.', $claim->getBillingId()));
+    }
+
+    private static function copyBillingId(string $billingId): void
+    {
+        $command = '/bin/echo -n ' . escapeshellarg($billingId) . ' | /usr/bin/pbcopy';
+        shell_exec($command);
     }
 
     /**
