@@ -256,9 +256,13 @@ final class ClaimCreateCommand extends Command
             return;
         }
 
-        $io->text(sprintf(
-            'Creating reversing journal entries for %s unbilled appointments...',
-            \count($unbilledAppointments)
+        $io->text(\MessageFormatter::formatMessage(
+            'en_US',
+            '{0, plural, ' .
+            'one {Creating reversing journal entry for # unbilled appointment} ' .
+            'other {Creating reversing journal entries for # unbilled appointments}' .
+    '}...',
+            [\count($unbilledAppointments)]
         ));
 
         foreach ($unbilledAppointments as $appointment) {
