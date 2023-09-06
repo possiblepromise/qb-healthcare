@@ -35,27 +35,67 @@ final class Edi835Reader
 
         /** @var ISA $isa */
         foreach ($this->x12->ISA as $isa) {
-            /** @var GS $gs */
-            foreach ($isa->GS as $gs) {
-                /** @var ST $st */
-                foreach ($gs->ST as $st) {
-                    $payments[] = self::processTransactionSet($st);
-                }
-
-                if ((int) $gs->GE->GE01 !== \count($payments)) {
-                    throw new EdiException('The number of transaction sets do not match.');
-                }
-                if ($gs->GE->GE02 !== $gs->GS06) {
-                    throw new EdiException('The group control numbers do not match.');
-                }
-            }
-
-            if ($isa->IEA->IEA02 !== $isa->ISA13) {
-                throw new EdiException('The interchange control numbers do not match.');
-            }
+            self::processInterchangeControl($isa, $payments);
         }
 
         return $payments;
+    }
+
+    private static function readFileData(string $file): string
+    {
+        $extension = pathinfo($file, PATHINFO_EXTENSION);
+        if (strtolower($extension) === 'zip') {
+            $zip = new \ZipArchive();
+            $zip->open($file);
+
+            $foundFile = null;
+
+            for ($i = 0; $i < $zip->numFiles; ++$i) {
+                $name = $zip->getNameIndex($i);
+                if (str_ends_with($name, '.835')) {
+                    $foundFile = $name;
+                }
+            }
+
+            if ($foundFile === null) {
+                throw new EdiException('No 835 file found in this zip.');
+            }
+
+            $file = "zip://{$file}#{$foundFile}";
+        }
+
+        return file_get_contents($file);
+    }
+
+    private static function processInterchangeControl(ISA $isa, array &$payments): void
+    {
+        /** @var GS $gs */
+        foreach ($isa->GS as $gs) {
+            self::processFunctionalGroup($gs, $payments);
+        }
+
+        if ($isa->IEA->IEA02 !== $isa->ISA13) {
+            throw new EdiException('The interchange control numbers do not match.');
+        }
+    }
+
+    /**
+     * @param Edi835Payment[] $payments
+     */
+    private static function processFunctionalGroup(GS $gs, array &$payments): void
+    {
+        /** @var ST $st */
+        foreach ($gs->ST as $st) {
+            $payments[] = self::processTransactionSet($st);
+        }
+
+        if ((int) $gs->GE->GE01 !== \count($payments)) {
+            throw new EdiException('The number of transaction sets do not match.');
+        }
+
+        if ($gs->GE->GE02 !== $gs->GS06) {
+            throw new EdiException('The group control numbers do not match.');
+        }
     }
 
     private static function processTransactionSet(ST $st): Edi835Payment
@@ -171,32 +211,6 @@ final class Edi835Reader
         self::validatePayment($payment);
 
         return $payment;
-    }
-
-    private static function readFileData(string $file): string
-    {
-        $extension = pathinfo($file, PATHINFO_EXTENSION);
-        if (strtolower($extension) === 'zip') {
-            $zip = new \ZipArchive();
-            $zip->open($file);
-
-            $foundFile = null;
-
-            for ($i = 0; $i < $zip->numFiles; ++$i) {
-                $name = $zip->getNameIndex($i);
-                if (str_ends_with($name, '.835')) {
-                    $foundFile = $name;
-                }
-            }
-
-            if ($foundFile === null) {
-                throw new EdiException('No 835 file found in this zip.');
-            }
-
-            $file = "zip://{$file}#{$foundFile}";
-        }
-
-        return file_get_contents($file);
     }
 
     private static function parseDate(string $ediDate): \DateTimeImmutable
