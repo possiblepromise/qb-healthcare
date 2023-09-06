@@ -7,6 +7,8 @@ namespace PossiblePromise\QbHealthcare\Edi;
 use PossiblePromise\QbHealthcare\Entity\ProviderAdjustment;
 use PossiblePromise\QbHealthcare\Entity\ProviderAdjustmentType;
 use PossiblePromise\QbHealthcare\Exception\EdiException;
+use Uhin\X12Parser\EDI\Segments\GS;
+use Uhin\X12Parser\EDI\Segments\ISA;
 use Uhin\X12Parser\EDI\Segments\Segment;
 use Uhin\X12Parser\EDI\Segments\ST;
 use Uhin\X12Parser\EDI\X12;
@@ -24,10 +26,40 @@ final class Edi835Reader
         $this->x12 = $parser->parse();
     }
 
-    public function process(): Edi835Payment
+    /**
+     * @return Edi835Payment[]
+     */
+    public function process(): array
     {
-        /** @var ST $st */
-        $st = $this->x12->ISA[0]->GS[0]->ST[0];
+        $payments = [];
+
+        /** @var ISA $isa */
+        foreach ($this->x12->ISA as $isa) {
+            /** @var GS $gs */
+            foreach ($isa->GS as $gs) {
+                /** @var ST $st */
+                foreach ($gs->ST as $st) {
+                    $payments[] = self::processTransactionSet($st);
+                }
+
+                if ((int) $gs->GE->GE01 !== \count($payments)) {
+                    throw new EdiException('The number of transaction sets do not match.');
+                }
+                if ($gs->GE->GE02 !== $gs->GS06) {
+                    throw new EdiException('The group control numbers do not match.');
+                }
+            }
+
+            if ($isa->IEA->IEA02 !== $isa->ISA13) {
+                throw new EdiException('The interchange control numbers do not match.');
+            }
+        }
+
+        return $payments;
+    }
+
+    private static function processTransactionSet(ST $st): Edi835Payment
+    {
         if ($st->ST01 !== '835') {
             throw new EdiException('This is not an EDI 835 file.');
         }
@@ -87,8 +119,8 @@ final class Edi835Reader
                     $charge->units = (int) $segment->SVC05;
 
                     if ($claimStartDate !== null
-                    && $claimEndDate !== null
-                    && $claimStartDate->format('Y-m-d') === $claimEndDate->format('Y-m-d')) {
+                        && $claimEndDate !== null
+                        && $claimStartDate->format('Y-m-d') === $claimEndDate->format('Y-m-d')) {
                         $charge->serviceDate = clone $claimStartDate;
                     }
 
@@ -127,6 +159,12 @@ final class Edi835Reader
                 case 'PLB':
                     $payment->providerAdjustments[] = self::processProviderAdjustment($segment);
                     break;
+
+                case 'SE':
+                    if ($segment->SE02 !== $st->ST02) {
+                        throw new EdiException('The transaction set control numbers do not match.');
+                    }
+                    break 2;
             }
         }
 

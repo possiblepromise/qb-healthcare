@@ -22,6 +22,7 @@ final class PaymentsRepository
 {
     use QbApiTrait;
 
+    private Collection $paymentData;
     private Collection $payments;
 
     public function __construct(
@@ -32,7 +33,8 @@ final class PaymentsRepository
         MongoClient $client
     ) {
         $this->qb = $qb;
-        $this->payments = $client->getDatabase()->selectCollection('paymentData');
+        $this->paymentData = $client->getDatabase()->selectCollection('paymentData');
+        $this->payments = $client->getDatabase()->selectCollection('payments');
     }
 
     /**
@@ -90,10 +92,15 @@ final class PaymentsRepository
 
         $paymentEntity = new PaymentEntity($paymentRef, (string) $payment->Id, $claimIds, $providerAdjustments);
         $paymentEntity->setQbCompanyId($this->qb->getActiveCompany()->realmId);
-        $this->payments->insertOne($paymentEntity);
+        $this->paymentData->insertOne($paymentEntity);
         $this->claims->markPaid($paymentRef);
 
         return $payment;
+    }
+
+    public function get(string $paymentRef): ?PaymentEntity
+    {
+        return $this->payments->findOne(['_id' => $paymentRef]);
     }
 
     private static function createPaymentLineFromInvoice(IPPInvoice $invoice): IPPLine

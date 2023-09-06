@@ -8,6 +8,7 @@ namespace PossiblePromise\QbHealthcare\Command;
 
 use PossiblePromise\QbHealthcare\Edi\Edi835ChargePayment;
 use PossiblePromise\QbHealthcare\Edi\Edi835ClaimPayment;
+use PossiblePromise\QbHealthcare\Edi\Edi835Payment;
 use PossiblePromise\QbHealthcare\Edi\Edi835Reader;
 use PossiblePromise\QbHealthcare\Entity\Charge;
 use PossiblePromise\QbHealthcare\Entity\Claim;
@@ -79,8 +80,51 @@ final class PaymentCreateCommand extends Command
 
         $file = $input->getArgument('eraFile');
 
+        $restore = $input->getOption('restore');
+
         $era835 = new Edi835Reader($file);
-        $payment = $era835->process();
+        $payments = $era835->process();
+
+        $allPaymentsProcessed = true;
+        $errors = false;
+
+        foreach ($payments as $i => $payment) {
+            $io->section(sprintf('Processing Payment %d of %d', $i + 1, \count($payments)));
+
+            try {
+                $processed = $this->processPayment($payment, $restore, $io);
+
+                if ($processed === false) {
+                    $allPaymentsProcessed = false;
+                }
+            } catch (\Exception) {
+                $errors = true;
+            }
+        }
+
+        if ($allPaymentsProcessed === true && $errors === false) {
+            self::moveProcessedPayment($file);
+        }
+
+        if ($errors === true) {
+            return Command::FAILURE;
+        }
+
+        return Command::SUCCESS;
+    }
+
+    /**
+     * @return bool Whether the payment was processed
+     *
+     * @throws \Exception If an error occurs
+     */
+    private function processPayment(Edi835Payment $payment, bool $restore, SymfonyStyle $io): bool
+    {
+        if ($this->payments->get($payment->paymentRef) !== null) {
+            $io->error('Payment ' . $payment->paymentRef . ' has already been processed.');
+
+            return true;
+        }
 
         $fmt = new \NumberFormatter('en_US', \NumberFormatter::CURRENCY);
 
@@ -91,10 +135,10 @@ final class PaymentCreateCommand extends Command
             $payment->paymentDate->format('Y-m-d')
         );
         if (!$io->confirm($message)) {
-            return Command::INVALID;
+            return false;
         }
 
-        $restore = $input->getOption('restore');
+        $this->cachedCharges = [];
 
         /** @var Claim[] $claims */
         $claims = [];
@@ -127,7 +171,7 @@ final class PaymentCreateCommand extends Command
             $this->restoreCharges();
             $io->error($e->getMessage());
 
-            return Command::FAILURE;
+            throw $e;
         }
 
         if ($restore === true) {
@@ -137,7 +181,7 @@ final class PaymentCreateCommand extends Command
                 [\count($unfinishedClaimIds)]
             ));
 
-            return Command::SUCCESS;
+            return false;
         }
 
         if (!empty($unfinishedClaimIds)) {
@@ -145,7 +189,7 @@ final class PaymentCreateCommand extends Command
             $io->listing($unfinishedClaimIds);
             $this->restoreCharges();
 
-            return Command::FAILURE;
+            throw new \Exception();
         }
 
         self::showPaidClaims($claims, $payment->providerAdjustments, $io);
@@ -153,7 +197,7 @@ final class PaymentCreateCommand extends Command
         if (!$io->confirm('Continue?', false)) {
             $this->restoreCharges();
 
-            return Command::SUCCESS;
+            return false;
         }
 
         try {
@@ -162,14 +206,12 @@ final class PaymentCreateCommand extends Command
             $this->restoreCharges();
             $io->error($e->getMessage());
 
-            return Command::FAILURE;
+            throw $e;
         }
 
         $io->success(sprintf('Payment %s has been processed successfully.', $payment->paymentRef));
 
-        self::moveProcessedPayment($file);
-
-        return Command::SUCCESS;
+        return true;
     }
 
     private function processClaim(string $paymentRef, \DateTimeImmutable $paymentDate, Edi835ClaimPayment $claim, bool $restore = false): ?Claim
