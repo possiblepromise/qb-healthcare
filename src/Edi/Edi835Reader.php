@@ -74,6 +74,10 @@ final class Edi835Reader
             self::processFunctionalGroup($gs, $payments);
         }
 
+        if ((int) $isa->IEA->IEA01 !== \count($isa->GS)) {
+            throw new EdiException('The number of functional groups do not match.');
+        }
+
         if ($isa->IEA->IEA02 !== $isa->ISA13) {
             throw new EdiException('The interchange control numbers do not match.');
         }
