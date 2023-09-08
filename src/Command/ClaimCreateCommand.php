@@ -111,6 +111,16 @@ final class ClaimCreateCommand extends Command
 
         try {
             foreach ($claims as $claim) {
+                if ($claim->billedDate->format('Y-m-d') !== $nextClaim->format('Y-m-d')) {
+                    $io->error(sprintf(
+                        'The next claim date should be %s but this claim is on %s.',
+                        $nextClaim->format('Y-m-d'),
+                        $claim->billedDate->format('Y-m-d')
+                    ));
+
+                    return Command::INVALID;
+                }
+
                 $this->processClaim(
                     $claim,
                     $input->getOption('show-charges'),
