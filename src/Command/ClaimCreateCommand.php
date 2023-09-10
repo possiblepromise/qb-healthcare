@@ -84,19 +84,9 @@ final class ClaimCreateCommand extends Command
         if ($file !== null) {
             $edi = new Edi837Reader($file);
         } elseif ($directory !== null) {
-            $files = glob("{$directory}/*.txt");
-            natsort($files);
+            $edi = self::readFromDirectory($directory);
 
-            foreach ($files as $file) {
-                try {
-                    $edi = new Edi837Reader($file);
-                    break;
-                } catch (\Exception) {
-                    continue;
-                }
-            }
-
-            if (!isset($edi)) {
+            if ($edi === null) {
                 $io->error('No valid EDI 837 files were found.');
 
                 return Command::INVALID;
@@ -241,6 +231,22 @@ final class ClaimCreateCommand extends Command
         $io->success(sprintf('Claim %s has been processed successfully.', $claim->getBillingId()));
 
         return true;
+    }
+
+    private static function readFromDirectory(string $directory): ?Edi837Reader
+    {
+        $files = glob("{$directory}/*.txt");
+        natsort($files);
+
+        foreach ($files as $file) {
+            try {
+                return new Edi837Reader($file);
+            } catch (\Exception) {
+                continue;
+            }
+        }
+
+        return null;
     }
 
     private static function copyBillingId(string $billingId): void
