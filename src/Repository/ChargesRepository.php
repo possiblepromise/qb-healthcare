@@ -28,11 +28,13 @@ final class ChargesRepository extends MongoRepository
 
     private Collection $charges;
     private Collection $unpaidCharges;
+    private Collection $unprocessedCharges;
 
     public function __construct(MongoClient $client, QuickBooks $qb, private PayersRepository $payers)
     {
         $this->charges = $client->getDatabase()->selectCollection('charges');
         $this->unpaidCharges = $client->getDatabase()->selectCollection('unpaidCharges');
+        $this->unprocessedCharges = $client->getDatabase()->selectCollection('unprocessedCharges');
         $this->qb = $qb;
     }
 
@@ -273,15 +275,22 @@ final class ChargesRepository extends MongoRepository
     /**
      * @return Charge[]
      */
-    public function findUnpaidFromPayerAndService(Payer $payer, Service $service)
+    public function findUnpaidFromPayerAndService(Payer $payer, Service $service): array
     {
-        /** @var Cursor $result */
-        $result = $this->unpaidCharges->find([
+        $query = [
             'primaryPaymentInfo.payer._id' => $payer->getId(),
             'service._id' => $service->getBillingCode(),
-        ]);
+        ];
 
-        return self::getArrayFromResult($result);
+        /** @var Cursor $unpaidResults */
+        $unpaidResults = $this->unpaidCharges->find($query);
+
+        $charges = self::getArrayFromResult($unpaidResults);
+
+        /** @var Cursor $result */
+        $unprocessedResults = $this->unprocessedCharges->find($query);
+
+        return array_merge($charges, self::getArrayFromResult($unprocessedResults));
     }
 
     public function save(Charge $charge): void
