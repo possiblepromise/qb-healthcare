@@ -108,9 +108,10 @@ final class ClaimCreateCommand extends Command
         }
 
         $claims = $edi->process();
+        $allClaimsProcessed = true;
 
         try {
-            foreach ($claims as $claim) {
+            foreach ($claims as $i => $claim) {
                 if ($claim->billedDate->format('Y-m-d') !== $nextClaim->format('Y-m-d')) {
                     $io->error(sprintf(
                         'The next claim date should be %s but this claim is on %s.',
@@ -121,12 +122,18 @@ final class ClaimCreateCommand extends Command
                     return Command::INVALID;
                 }
 
-                $this->processClaim(
+                $io->section(sprintf('Processing Claim %d of %d', $i + 1, \count($claims)));
+
+                $processed = $this->processClaim(
                     $claim,
                     $input->getOption('show-charges'),
                     $input->getOption('copy'),
                     $io
                 );
+
+                if ($processed === false) {
+                    $allClaimsProcessed = false;
+                }
             }
         } catch (\Exception $e) {
             $io->error($e->getMessage());
@@ -134,12 +141,19 @@ final class ClaimCreateCommand extends Command
             return Command::FAILURE;
         }
 
-        self::moveProcessedClaim($file);
+        if ($allClaimsProcessed === true) {
+            self::moveProcessedClaim($file);
+        }
 
         return Command::SUCCESS;
     }
 
-    private function processClaim(Edi837Claim $claim, bool $showCharges, bool $copyBillingId, SymfonyStyle $io): void
+    /**
+     * @return bool true if claim has been processed, false otherwise
+     *
+     * @throws \Exception
+     */
+    private function processClaim(Edi837Claim $claim, bool $showCharges, bool $copyBillingId, SymfonyStyle $io): bool
     {
         $fmt = new \NumberFormatter('en_US', \NumberFormatter::CURRENCY);
 
@@ -179,7 +193,7 @@ final class ClaimCreateCommand extends Command
 
         $io->text('If this looks good, this claim will be imported into QuickBooks.');
         if (!$io->confirm('Continue?')) {
-            return;
+            return false;
         }
 
         $unbilledAppointments = $this->appointments->findUnbilledFromCharges($charges);
@@ -225,6 +239,8 @@ final class ClaimCreateCommand extends Command
         }
 
         $io->success(sprintf('Claim %s has been processed successfully.', $claim->getBillingId()));
+
+        return true;
     }
 
     private static function copyBillingId(string $billingId): void
