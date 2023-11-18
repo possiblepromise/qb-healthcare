@@ -160,7 +160,12 @@ final class Edi835Reader
                     $charge->billingCode = $segment->SVC01[0][1];
                     $charge->billed = $segment->SVC02;
                     $charge->paid = $segment->SVC03;
-                    $charge->units = (int) $segment->SVC05;
+                    if (isset($segment->SVC05)) {
+                        $charge->units = (int) $segment->SVC05;
+                    } else {
+                        $charge->units = 1;
+                    }
+
 
                     if ($claimStartDate !== null
                         && $claimEndDate !== null
