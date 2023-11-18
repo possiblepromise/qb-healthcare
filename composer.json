@@ -46,5 +46,8 @@
   },
   "config": {
     "sort-packages": true
+  },
+  "scripts": {
+    "db-dump": "mongodump -d qbHealthcare -o \"var/data/$(date +'%Y-%m-%d')\""
   }
 }
