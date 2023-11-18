@@ -84,7 +84,7 @@ final class ClaimCreateCommand extends Command
         if ($file !== null) {
             $edi = new Edi837Reader($file);
         } elseif ($directory !== null) {
-            $edi = self::readFromDirectory($directory);
+            $edi = self::readFromDirectory($directory, $file);
 
             if ($edi === null) {
                 $io->error('No valid EDI 837 files were found.');
@@ -233,14 +233,17 @@ final class ClaimCreateCommand extends Command
         return true;
     }
 
-    private static function readFromDirectory(string $directory): ?Edi837Reader
+    private static function readFromDirectory(string $directory, ?string &$ediFile): ?Edi837Reader
     {
         $files = glob("{$directory}/*.txt");
         natsort($files);
 
         foreach ($files as $file) {
             try {
-                return new Edi837Reader($file);
+                $edi = new Edi837Reader($file);
+                $ediFile = $file;
+
+                return $edi;
             } catch (\Exception) {
                 continue;
             }
