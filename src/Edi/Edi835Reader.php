@@ -166,7 +166,6 @@ final class Edi835Reader
                         $charge->units = 1;
                     }
 
-
                     if ($claimStartDate !== null
                         && $claimEndDate !== null
                         && $claimStartDate->format('Y-m-d') === $claimEndDate->format('Y-m-d')) {
