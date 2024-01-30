@@ -196,6 +196,20 @@ final class ChargesRepository extends MongoRepository
         return $charges;
     }
 
+    public function findByChargeLine(string $chargeLine): Charge
+    {
+        /** @var Charge|null $charge */
+        $charge = $this->charges->findOne([
+            '_id' => $chargeLine,
+        ]);
+
+        if ($charge === null) {
+            throw new \RuntimeException('Could not find charge' . $chargeLine . '.');
+        }
+
+        return $charge;
+    }
+
     /**
      * @return Charge[]
      */

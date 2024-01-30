@@ -24,6 +24,7 @@ use PossiblePromise\QbHealthcare\Repository\InvoicesRepository;
 use PossiblePromise\QbHealthcare\Repository\ItemsRepository;
 use PossiblePromise\QbHealthcare\Repository\PayersRepository;
 use PossiblePromise\QbHealthcare\Repository\PaymentsRepository;
+use PossiblePromise\QbHealthcare\Type\FilterableArray;
 use QuickBooksOnline\API\Data\IPPItem;
 use QuickBooksOnline\API\Data\IPPLine;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -277,10 +278,9 @@ final class PaymentCreateCommand extends Command
         /** @var Charge $charge */
         $charge = $charges->shift();
 
-        self::validateChargeAdjustments($charge, $chargePayment->contractualAdjustment);
-
         if ($restore === true) {
             $charge
+                ->setContractAmount(bcmul($charge->getService()->getContractRate(), (string) $charge->getBilledUnits(), 2))
                 ->setPayerBalance($charge->getBilledAmount())
                 ->getPrimaryPaymentInfo()
                 ->setPaymentDate(null)
@@ -298,6 +298,7 @@ final class PaymentCreateCommand extends Command
         $this->cachedCharges[] = clone $charge;
 
         $charge
+            ->setContractAmount(bcsub($chargePayment->billed, $chargePayment->contractualAdjustment, 2))
             ->setPayerBalance('0.00')
             ->getPrimaryPaymentInfo()
             ->setPaymentDate($paymentDate)
@@ -329,11 +330,6 @@ final class PaymentCreateCommand extends Command
         );
 
         if (bccomp($contractualAdjustment, $expectedContractualAdjustment, 2) !== 0) {
-            throw new PaymentCreationException(sprintf(
-                'This line includes a contractual adjustment of %s, but %s was expected.',
-                $fmt->formatCurrency((float) $contractualAdjustment, 'USD'),
-                $fmt->formatCurrency((float) $expectedContractualAdjustment, 'USD')
-            ));
         }
     }
 
@@ -488,16 +484,53 @@ final class PaymentCreateCommand extends Command
 
         foreach ($creditMemoIds as $creditMemoId) {
             $creditMemo = $this->creditMemos->get($creditMemoId);
+            $modificationsMade = false;
 
             /** @var IPPLine $line */
-            foreach ($creditMemo->Line as $line) {
+            foreach ($creditMemo->Line as $i => $line) {
                 if ($line->DetailType !== 'SalesItemLineDetail') {
                     continue;
                 }
 
-                $creditedAdjustments = bcadd($creditedAdjustments, (string) $line->Amount, 2);
-
                 if ($line->SalesItemLineDetail->ItemRef === $this->qb->getActiveCompany()->contractualAdjustmentItem) {
+                    /** @var Charge|null $charge $charge */
+                    $chargeLine = (new FilterableArray($claim->getCharges()))->selectOne(static fn (string $charge) => $charge === $line->Description);
+                    $charge = $this->charges->findByChargeLine($chargeLine);
+
+                    if ($charge === null) {
+                        throw new PaymentCreationException(sprintf(
+                            'Charge %s could not be found in claim %s',
+                            $line->Description,
+                            $claim->getBillingId()
+                        ));
+                    }
+
+                    $contractualAdjustment = bcsub($charge->getBilledAmount(), $charge->getContractAmount(), 2);
+
+                    if (bccomp($contractualAdjustment, (string) $line->Amount, 2) !== 0) {
+                        if (bccomp($contractualAdjustment, '0.00', 2) === 0) {
+                            $io->note(sprintf(
+                                'Charge %s has no contractual adjustment, but %s was found in the credit memo. This line will be deleted.',
+                                $charge->getChargeLine(),
+                                $fmt->formatCurrency((float) $line->Amount, 'USD')
+                            ));
+
+                            unset($creditMemo->Line[$i]);
+                        } else {
+                            $io->note(sprintf(
+                                'Charge %s has a contractual adjustment of %s, but %s was found in the credit memo. This line will be modified.',
+                                $charge->getChargeLine(),
+                                $fmt->formatCurrency((float) $contractualAdjustment, 'USD'),
+                                $fmt->formatCurrency((float) $line->Amount, 'USD')
+                            ));
+
+                            $line->Amount = $contractualAdjustment;
+                            $line->SalesItemLineDetail->UnitPrice = bcdiv($line->Amount, $line->SalesItemLineDetail->Qty, 2);
+                        }
+
+                        $modificationsMade = true;
+                    }
+
                     $creditedContractualAdjustments = bcadd($creditedContractualAdjustments, (string) $line->Amount, 2);
                 } elseif ($line->SalesItemLineDetail->ItemRef === $this->qb->getActiveCompany()->coinsuranceItem) {
                     $creditedCoinsurance = bcadd($creditedCoinsurance, (string) $line->Amount, 2);
@@ -507,6 +540,17 @@ final class PaymentCreateCommand extends Command
                     throw new PaymentCreationException(
                         "Found unexpected adjustment using the item: {$item->Name}"
                     );
+                }
+
+                $creditedAdjustments = bcadd($creditedAdjustments, (string) $line->Amount, 2);
+            }
+
+            if ($modificationsMade === true) {
+                if (empty($creditMemo->Line)) {
+                    // All lines removed
+                    $this->creditMemos->void($creditMemo);
+                } else {
+                    $this->creditMemos->updateLines($creditMemo);
                 }
             }
         }

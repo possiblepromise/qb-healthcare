@@ -58,7 +58,10 @@ final class PaymentsRepository
             $lines[] = self::createPaymentLineFromInvoice($this->invoices->get($claim->getQbInvoiceId()));
 
             foreach ($claim->getQbCreditMemoIds() as $creditMemoId) {
-                $lines[] = self::createPaymentLineFromCreditMemo($this->creditMemos->get($creditMemoId));
+                $creditMemo = $this->creditMemos->get($creditMemoId);
+                if ($creditMemo->status !== 'Voided') {
+                    $lines[] = self::createPaymentLineFromCreditMemo($creditMemo);
+                }
             }
         }
 

@@ -103,6 +103,22 @@ final class CreditMemosRepository
         $this->getDataService()->Delete($creditMemo);
     }
 
+    public function void(IPPCreditMemo $creditMemo): void
+    {
+        $this->getDataService()->Void($creditMemo);
+    }
+
+    public function updateLines(IPPCreditMemo $creditMemo): IPPCreditMemo
+    {
+        $updatedCreditMemo = CreditMemo::update($creditMemo, [
+            'sparse' => true,
+            'Line' => $creditMemo->Line,
+        ]);
+
+        /** @noinspection PhpIncompatibleReturnTypeInspection */
+        return $this->getDataService()->Update($updatedCreditMemo);
+    }
+
     public function createFromProviderAdjustment(
         string $paymentRef,
         \DateTimeInterface $paymentDate,
