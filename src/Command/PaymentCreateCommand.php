@@ -666,6 +666,11 @@ final class PaymentCreateCommand extends Command
             $fileSystem->mkdir(self::PROCESSED_PAYMENTS_PATH);
         }
 
-        $fileSystem->rename($file, self::PROCESSED_PAYMENTS_PATH . '/' . basename($file));
+        $target = self::PROCESSED_PAYMENTS_PATH . '/' . basename($file);
+        if ($fileSystem->exists($target)) {
+            $fileSystem->remove($file);
+        } else {
+            $fileSystem->rename($file, $target);
+        }
     }
 }
